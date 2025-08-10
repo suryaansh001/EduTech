@@ -3,7 +3,7 @@ import { successResponse, errorResponse } from '../utils/response.utils.js';
 import { redisClient } from '../config/redis.js';
 
 export const authController = {
-  // Register a new user
+  // Register a new user (public registration)
   register: async (req, res, next) => {
     try {
       const { name, email, password, role, phone, bio } = req.body;
@@ -18,6 +18,28 @@ export const authController = {
       });
 
       successResponse(res, result, 'User registered successfully', 201);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // Admin creates a new user (student/teacher)
+  createUser: async (req, res, next) => {
+    try {
+      const adminId = req.user.id;
+      const { name, email, role, phone, bio, grade, specialization } = req.body;
+      
+      const result = await authService.createUserByAdmin({
+        name,
+        email,
+        role,
+        phone,
+        bio,
+        grade,
+        specialization
+      }, adminId);
+
+      successResponse(res, result, `${role} created successfully and credentials sent via email`, 201);
     } catch (error) {
       next(error);
     }
@@ -86,6 +108,32 @@ export const authController = {
       await authService.changePassword(userId, currentPassword, newPassword);
       
       successResponse(res, null, 'Password changed successfully');
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // Request password reset
+  forgotPassword: async (req, res, next) => {
+    try {
+      const { email } = req.body;
+      
+      const result = await authService.generatePasswordResetToken(email);
+      
+      successResponse(res, result, 'Password reset email sent');
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // Reset password using token
+  resetPassword: async (req, res, next) => {
+    try {
+      const { token, newPassword } = req.body;
+      
+      const result = await authService.resetPassword(token, newPassword);
+      
+      successResponse(res, result, 'Password reset successfully');
     } catch (error) {
       next(error);
     }

@@ -9,9 +9,14 @@ class RedisClient {
 
   async connect() {
     try {
-      this.client = createClient({
-        url: process.env.REDIS_URL || 'redis://localhost:6379'
-      });
+      this.client =  createClient({
+    username: 'default',
+    password: '8hxtXD9JxOVt8dKBCPpljeMgwGsVV6Zq',
+    socket: {
+        host: 'redis-10774.c61.us-east-1-3.ec2.redns.redis-cloud.com',
+        port: 10774
+    }
+});
 
       this.client.on('error', (err) => {
         logger.error('Redis Client Error:', err);

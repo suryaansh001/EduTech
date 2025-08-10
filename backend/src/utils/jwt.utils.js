@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { logger } from './logger.utils.js';
+import crypto from 'crypto';
 
 export const generateToken = (payload) => {
   try {
@@ -28,4 +29,23 @@ export const decodeToken = (token) => {
     logger.error('Token decode error:', error);
     return null;
   }
+};
+
+export const generateRandomPassword = (length = 12) => {
+  const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%&*';
+  let password = '';
+  
+  // Ensure at least one of each type
+  password += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[Math.floor(Math.random() * 26)]; // uppercase
+  password += 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)]; // lowercase
+  password += '0123456789'[Math.floor(Math.random() * 10)]; // number
+  password += '@#$%&*'[Math.floor(Math.random() * 6)]; // special char
+  
+  // Fill the rest
+  for (let i = 4; i < length; i++) {
+    password += charset[Math.floor(Math.random() * charset.length)];
+  }
+  
+  // Shuffle the password
+  return password.split('').sort(() => Math.random() - 0.5).join('');
 };

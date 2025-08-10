@@ -6,21 +6,23 @@ import { Server } from 'socket.io';
 import rateLimit from 'express-rate-limit';
 
 // Import configurations
-import { connectRedis } from './src/config/redis.js';
-import { initializeSocket } from './src/socket/index.js';
+import { connectRedis } from './config/redis.js';
+import { initializeSocket } from './socket/index.js';
 
 // Import middleware
-import { errorHandler } from './src/middleware/error.middleware.js';
-import { logger } from './src/utils/logger.utils.js';
+import { errorHandler } from './middleware/error.middleware.js';
+import { logger } from './utils/logger.utils.js';
 
 // Import routes
-import authRoutes from './src/routes/auth.routes.js';
-import userRoutes from './src/routes/users.routes.js';
-import classRoutes from './src/routes/classes.routes.js';
-import quizRoutes from './src/routes/quizzes.routes.js';
-import fileRoutes from './src/routes/files.routes.js';
-import chatRoutes from './src/routes/chat.routes.js';
-import analyticsRoutes from './src/routes/analytics.routes.js';
+import authRoutes from './routes/auth.routes.js';
+import userRoutes from './routes/users.routes.js';
+import classRoutes from './routes/classes.routes.js';
+import quizRoutes from './routes/quizzes.routes.js';
+import fileRoutes from './routes/files.routes.js';
+import chatRoutes from './routes/chat.routes.js';
+import analyticsRoutes from './routes/analytics.routes.js';
+import announcementRoutes from './routes/announcements.routes.js';
+import noteRoutes from './routes/notes.routes.js';
 
 const app = express();
 const server = createServer(app);
@@ -77,6 +79,8 @@ app.use('/api/quizzes', quizRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/announcements', announcementRoutes);
+app.use('/api/notes', noteRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
