@@ -44,6 +44,8 @@ model User {
   profileImage  String?
   bio           String?
   phone         String?
+  isFirstLogin  Boolean   @default(true)
+  isActive      Boolean   @default(true)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   lastLogin     DateTime?
@@ -56,6 +58,8 @@ model User {
   quizAttempts    QuizAttempt[]
   chatMessages    ChatMessage[]
   fileUploads     FileUpload[]
+  announcements   Announcement[]
+  notes           Note[]
 
   @@map("users")
 }
@@ -108,12 +112,14 @@ model Class {
   updatedAt   DateTime    @updatedAt
 
   // Relations
-  teacher     User         @relation("TeacherClasses", fields: [teacherId], references: [id])
-  enrollments Enrollment[]
-  schedules   Schedule[]
-  quizzes     Quiz[]
+  teacher      User           @relation("TeacherClasses", fields: [teacherId], references: [id])
+  enrollments  Enrollment[]
+  schedules    Schedule[]
+  quizzes      Quiz[]
   chatMessages ChatMessage[]
-  fileUploads FileUpload[]
+  fileUploads  FileUpload[]
+  announcements Announcement[]
+  notes        Note[]
 
   @@map("classes")
 }
@@ -238,4 +244,51 @@ model Analytics {
   createdAt   DateTime @default(now())
 
   @@map("analytics")
+}
+
+model Announcement {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  priority  String   @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
+  isActive  Boolean  @default(true)
+  classId   String
+  authorId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  class  Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+  author User  @relation(fields: [authorId], references: [id])
+
+  @@map("announcements")
+}
+
+model Note {
+  id          String   @id @default(cuid())
+  title       String
+  content     String
+  subject     String?
+  tags        String[] // Array of tags for categorization
+  isPublic    Boolean  @default(false)
+  classId     String?
+  authorId    String
+  attachments String[] // Array of file URLs
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  class  Class? @relation(fields: [classId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [authorId], references: [id])
+
+  @@map("notes")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("password_reset_tokens")
 }

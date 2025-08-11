@@ -1,88 +1,258 @@
-# EduTech Platform Backend
+# EduTech Backend API
 
-A comprehensive backend API for the EduTech platform built with Node.js, Express, PostgreSQL, and Redis.
+A comprehensive backend system for an educational technology platform supporting students, teachers, and administrators.
 
 ## Features
 
-- **Authentication & Authorization**: JWT-based auth with role-based access control
-- **User Management**: Students, Teachers, and Admin roles
-- **Class Management**: Create, manage, and enroll in classes
-- **Quiz System**: Create quizzes, take quizzes, and track performance
-- **Real-time Chat**: Socket.IO powered chat for each class
-- **File Upload & Sharing**: Cloudinary integration for file storage
-- **Analytics**: Comprehensive analytics for all user roles
-- **Real-time Features**: Live quiz sessions, typing indicators, online status
+### Core Functionality
+- **Authentication & Authorization**: JWT-based authentication with role-based access control
+- **User Management**: Complete user management with role-specific profiles
+- **Class Management**: Create and manage classes with student enrollment
+- **Announcements**: Teachers can post announcements to classes with email notifications
+- **Notes Sharing**: Teachers and students can share notes within classes
+- **File Uploads**: Secure file handling with Cloudinary integration
+- **Real-time Chat**: Socket.io based chat system for classes
+- **Quiz System**: Complete quiz management with scoring
+- **Email Notifications**: Automated email system for various events
 
-## Tech Stack
+### User Roles
+- **Admin**: Full system access, user management, class oversight
+- **Teacher**: Class creation, student management, content sharing
+- **Student**: Class enrollment, content access, quiz participation
 
-- **Runtime**: Node.js 18+
-- **Framework**: Express.js
-- **Database**: PostgreSQL with Prisma ORM
-- **Cache**: Redis
-- **Real-time**: Socket.IO
-- **File Storage**: Cloudinary
-- **Authentication**: JWT
-- **Validation**: Joi
-- **Logging**: Winston
+## Quick Start
 
-## Prerequisites
+### Prerequisites
+- Node.js (v16+)
+- PostgreSQL database
+- Redis server
+- Cloudinary account (for file uploads)
+- SMTP email service (Gmail recommended)
 
-- Node.js 18 or higher
-- PostgreSQL 14 or higher
-- Redis 6 or higher
-- npm or yarn
+### Installation
 
-## Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd edutech/backend
-   ```
-
-2. **Install dependencies**
+1. **Install dependencies**
    ```bash
    npm install
    ```
 
-3. **Environment Setup**
+2. **Environment Setup**
+   Copy `.env.example` to `.env` and configure:
    ```bash
    cp .env.example .env
    ```
-   
-   Update the `.env` file with your configurations:
-   ```env
-   NODE_ENV=development
-   PORT=5000
-   DATABASE_URL="postgresql://username:password@localhost:5432/edutech_db"
-   REDIS_URL="redis://localhost:6379"
-   JWT_SECRET="your-super-secret-jwt-key"
-   CLOUDINARY_CLOUD_NAME="your-cloudinary-name"
-   CLOUDINARY_API_KEY="your-cloudinary-api-key"
-   CLOUDINARY_API_SECRET="your-cloudinary-api-secret"
-   CLIENT_URL="http://localhost:3000"
-   ```
 
-4. **Database Setup**
+3. **Database Setup**
    ```bash
    # Generate Prisma client
    npm run db:generate
    
-   # Push database schema
-   npm run db:push
-   
-   # Or run migrations (if you have migration files)
+   # Run database migrations
    npm run db:migrate
+   
+   # (Optional) Seed database
+   npm run db:seed
    ```
 
-5. **Start the server**
+4. **Start Development Server**
    ```bash
-   # Development mode
    npm run dev
-   
-   # Production mode
-   npm start
    ```
+
+## API Endpoints
+
+### Authentication
+- `POST /api/auth/register` - Public user registration
+- `POST /api/auth/login` - User login
+- `POST /api/auth/logout` - User logout
+- `GET /api/auth/profile` - Get current user profile
+- `PUT /api/auth/profile` - Update user profile
+- `POST /api/auth/change-password` - Change password
+- `POST /api/auth/forgot-password` - Request password reset
+- `POST /api/auth/reset-password` - Reset password with token
+- `POST /api/auth/create-user` - Admin creates new users (sends credentials via email)
+
+### Users
+- `GET /api/users` - Get all users (admin only)
+- `GET /api/users/:id` - Get user by ID
+- `PUT /api/users/:id` - Update user (admin only)
+- `DELETE /api/users/:id` - Delete user (admin only)
+- `POST /api/users/upload-profile-image` - Upload profile image
+
+### Classes
+- `POST /api/classes` - Create class (teacher/admin)
+- `GET /api/classes` - Get classes (filtered by role)
+- `GET /api/classes/:id` - Get specific class
+- `PUT /api/classes/:id` - Update class (teacher/admin)
+- `DELETE /api/classes/:id` - Delete class (teacher/admin)
+- `POST /api/classes/:id/enroll` - Enroll in class (student)
+- `GET /api/classes/:id/enrollments` - Get class enrollments
+- `GET /api/classes/:id/available-students` - Get available students for enrollment
+- `POST /api/classes/:id/bulk-enroll` - Bulk enroll students
+- `DELETE /api/classes/:id/students/:studentId` - Remove student from class
+
+### Announcements
+- `POST /api/announcements/class/:classId` - Create announcement (teacher/admin)
+- `GET /api/announcements` - Get user's announcements
+- `GET /api/announcements/class/:classId` - Get class announcements
+- `GET /api/announcements/:id` - Get specific announcement
+- `PUT /api/announcements/:id` - Update announcement
+- `DELETE /api/announcements/:id` - Delete announcement
+
+### Notes
+- `POST /api/notes` - Create note
+- `GET /api/notes` - Get notes (with filters)
+- `GET /api/notes/:id` - Get specific note
+- `PUT /api/notes/:id` - Update note
+- `DELETE /api/notes/:id` - Delete note
+- `GET /api/notes/class/:classId` - Get class notes
+
+### Files
+- `POST /api/files/upload` - Upload file
+- `GET /api/files` - Get user's files
+- `GET /api/files/:id` - Get file details
+- `DELETE /api/files/:id` - Delete file
+
+## Key Features Explained
+
+### Admin User Management
+Admins can create new student/teacher accounts through the API. The system:
+1. Generates a secure temporary password
+2. Creates the user account with `isFirstLogin: true`
+3. Sends welcome email with credentials
+4. Forces password change on first login
+
+```javascript
+// Admin creates a student
+POST /api/auth/create-user
+{
+  "name": "John Student",
+  "email": "john@school.edu",
+  "role": "STUDENT",
+  "grade": "10th Grade"
+}
+```
+
+### Class Management with Student Selection
+Teachers and admins can:
+1. Create classes with specific criteria
+2. View available students not enrolled in the class
+3. Bulk enroll multiple students at once
+4. Manage enrollment statuses
+
+```javascript
+// Get available students for a class
+GET /api/classes/class-id/available-students?search=john&grade=10
+
+// Bulk enroll students
+POST /api/classes/class-id/bulk-enroll
+{
+  "studentIds": ["student1-id", "student2-id"]
+}
+```
+
+### Announcements with Email Notifications
+When teachers post announcements:
+1. Announcement is saved to database
+2. All enrolled students receive email notifications
+3. Students can view announcements in their dashboard
+
+### Notes Sharing System
+- Teachers can share public notes visible to all class members
+- Students can create private notes or share with the class
+- Advanced filtering by tags, subject, and search terms
+- File attachments supported
+
+### Security Features
+- JWT authentication with token blacklisting
+- Role-based authorization
+- Rate limiting on API endpoints
+- Input validation with Joi schemas
+- Secure file upload with type restrictions
+- Password hashing with bcrypt
+- SQL injection protection with Prisma ORM
+
+## Database Schema
+
+The system uses PostgreSQL with Prisma ORM. Key models:
+- **User**: Core user information with role-based profiles
+- **Class**: Class information with enrollment tracking
+- **Enrollment**: Student-class relationships with status
+- **Announcement**: Class announcements with priority levels
+- **Note**: Shared notes with visibility controls
+- **Quiz/Question**: Assessment system
+- **ChatMessage**: Real-time messaging
+- **FileUpload**: File management
+
+## Environment Variables
+
+```env
+# Database
+DATABASE_URL="postgresql://user:password@localhost:5432/edutech_db"
+
+# Redis
+REDIS_URL="redis://localhost:6379"
+
+# JWT
+JWT_SECRET="your-super-secret-jwt-key"
+JWT_EXPIRES_IN="24h"
+
+# Cloudinary (for file uploads)
+CLOUDINARY_CLOUD_NAME="your-cloud-name"
+CLOUDINARY_API_KEY="your-api-key"
+CLOUDINARY_API_SECRET="your-api-secret"
+
+# Email Service
+EMAIL_HOST="smtp.gmail.com"
+EMAIL_PORT=587
+EMAIL_USER="your-email@gmail.com"
+EMAIL_PASS="your-app-password"
+
+# Security
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=100
+```
+
+## Development Scripts
+
+```bash
+npm run dev          # Start development server with nodemon
+npm run start        # Start production server
+npm run db:generate  # Generate Prisma client
+npm run db:push      # Push schema changes to database
+npm run db:migrate   # Run database migrations
+npm run db:studio    # Open Prisma Studio
+npm run test         # Run tests
+```
+
+## Production Deployment
+
+1. Set NODE_ENV=production
+2. Configure production database and Redis
+3. Set up proper SMTP service
+4. Configure Cloudinary for file storage
+5. Use process manager like PM2
+6. Set up reverse proxy (nginx)
+7. Enable HTTPS with SSL certificates
+
+## API Testing
+
+The backend includes comprehensive error handling and validation. Test the API using:
+- Postman/Insomnia collections
+- Built-in health check: `GET /health`
+- Authentication testing with various roles
+
+## Contributing
+
+1. Follow the existing code structure
+2. Add proper validation schemas
+3. Include error handling
+4. Write tests for new features
+5. Update documentation
+
+## License
+
+MIT License - see LICENSE file for details.
 
 ## API Documentation
 

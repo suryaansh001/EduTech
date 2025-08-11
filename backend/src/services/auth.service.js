@@ -1,7 +1,9 @@
 import { prisma } from '../config/database.js';
 import { hashPassword, comparePassword } from '../utils/bcrypt.utils.js';
-import { generateToken } from '../utils/jwt.utils.js';
+import { generateToken, generateRandomPassword } from '../utils/jwt.utils.js';
 import { logger } from '../utils/logger.utils.js';
+import { emailService } from './email.service.js';
+import crypto from 'crypto';
 
 export const authService = {
   // Register a new user
@@ -30,7 +32,8 @@ export const authService = {
           role,
           phone,
           bio,
-          lastLogin: new Date()
+          lastLogin: new Date(),
+          isFirstLogin: false
         },
         select: {
           id: true,
@@ -40,7 +43,8 @@ export const authService = {
           profileImage: true,
           bio: true,
           phone: true,
-          createdAt: true
+          createdAt: true,
+          isFirstLogin: true
         }
       });
 
@@ -77,6 +81,86 @@ export const authService = {
     };
   },
 
+  // Admin creates a student/teacher with temporary password
+  createUserByAdmin: async (userData, adminId) => {
+    const { name, email, role = 'STUDENT', phone, bio, grade, specialization } = userData;
+
+    // Check if user already exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email }
+    });
+
+    if (existingUser) {
+      throw new Error('User with this email already exists');
+    }
+
+    // Generate temporary password
+    const temporaryPassword = generateRandomPassword();
+    const hashedPassword = await hashPassword(temporaryPassword);
+
+    // Create user with transaction
+    const user = await prisma.$transaction(async (prisma) => {
+      const newUser = await prisma.user.create({
+        data: {
+          name,
+          email,
+          password: hashedPassword,
+          role,
+          phone,
+          bio,
+          isFirstLogin: true,
+          isActive: true
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          profileImage: true,
+          bio: true,
+          phone: true,
+          createdAt: true,
+          isFirstLogin: true
+        }
+      });
+
+      // Create role-specific profile with additional data
+      if (role === 'TEACHER') {
+        await prisma.teacherProfile.create({
+          data: {
+            userId: newUser.id,
+            specialization: specialization || null
+          }
+        });
+      } else if (role === 'STUDENT') {
+        await prisma.studentProfile.create({
+          data: {
+            userId: newUser.id,
+            grade: grade || null
+          }
+        });
+      }
+
+      return newUser;
+    });
+
+    // Send welcome email with credentials
+    try {
+      await emailService.sendWelcomeEmail(user, temporaryPassword);
+      logger.info(`Welcome email sent to new ${role.toLowerCase()}: ${email}`);
+    } catch (error) {
+      logger.warn(`Failed to send welcome email to ${email}:`, error);
+      // Don't throw error here as user is already created
+    }
+
+    logger.info(`New ${role.toLowerCase()} created by admin ${adminId}: ${email}`);
+
+    return {
+      user,
+      temporaryPassword // Only return this in development/testing
+    };
+  },
+
   // Login user
   login: async (email, password) => {
     // Find user with profiles
@@ -90,6 +174,10 @@ export const authService = {
 
     if (!user) {
       throw new Error('Invalid email or password');
+    }
+
+    if (!user.isActive) {
+      throw new Error('Your account has been deactivated. Please contact administrator.');
     }
 
     // Check password
@@ -134,7 +222,9 @@ export const authService = {
             createdClasses: true,
             enrollments: true,
             quizAttempts: true,
-            fileUploads: true
+            fileUploads: true,
+            announcements: true,
+            notes: true
           }
         }
       }
@@ -210,22 +300,93 @@ export const authService = {
       throw new Error('User not found');
     }
 
-    // Verify current password
-    const isCurrentPasswordValid = await comparePassword(currentPassword, user.password);
-    if (!isCurrentPasswordValid) {
-      throw new Error('Current password is incorrect');
+    // For first login, skip current password verification
+    if (!user.isFirstLogin) {
+      // Verify current password for existing users
+      const isCurrentPasswordValid = await comparePassword(currentPassword, user.password);
+      if (!isCurrentPasswordValid) {
+        throw new Error('Current password is incorrect');
+      }
     }
 
     // Hash new password
     const hashedNewPassword = await hashPassword(newPassword);
 
-    // Update password
+    // Update password and mark first login as complete
     await prisma.user.update({
       where: { id: userId },
-      data: { password: hashedNewPassword }
+      data: { 
+        password: hashedNewPassword,
+        isFirstLogin: false
+      }
     });
 
     logger.info(`Password changed for user: ${user.email}`);
+  },
+
+  // Generate password reset token
+  generatePasswordResetToken: async (email) => {
+    const user = await prisma.user.findUnique({
+      where: { email }
+    });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    // Save token to database
+    await prisma.passwordResetToken.create({
+      data: {
+        token: resetToken,
+        userId: user.id,
+        expiresAt
+      }
+    });
+
+    // Send reset email
+    try {
+      await emailService.sendPasswordResetEmail(user, resetToken);
+      logger.info(`Password reset email sent to: ${email}`);
+    } catch (error) {
+      logger.error(`Failed to send password reset email to ${email}:`, error);
+      throw new Error('Failed to send password reset email');
+    }
+
+    return { message: 'Password reset email sent' };
+  },
+
+  // Reset password using token
+  resetPassword: async (token, newPassword) => {
+    const resetToken = await prisma.passwordResetToken.findUnique({
+      where: { token },
+      include: { user: true }
+    });
+
+    if (!resetToken || resetToken.used || resetToken.expiresAt < new Date()) {
+      throw new Error('Invalid or expired reset token');
+    }
+
+    // Hash new password
+    const hashedPassword = await hashPassword(newPassword);
+
+    // Update password and mark token as used
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: resetToken.userId },
+        data: { password: hashedPassword }
+      }),
+      prisma.passwordResetToken.update({
+        where: { token },
+        data: { used: true }
+      })
+    ]);
+
+    logger.info(`Password reset completed for user: ${resetToken.user.email}`);
+    return { message: 'Password reset successfully' };
   },
 
   // Refresh token
@@ -236,6 +397,10 @@ export const authService = {
 
     if (!user) {
       throw new Error('User not found');
+    }
+
+    if (!user.isActive) {
+      throw new Error('Account is deactivated');
     }
 
     // Generate new JWT token

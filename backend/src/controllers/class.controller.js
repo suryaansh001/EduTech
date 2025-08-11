@@ -84,7 +84,7 @@ export const classController = {
     }
   },
 
-  // Enroll in a class
+  // Enroll in a class (for students)
   enrollInClass: async (req, res, next) => {
     try {
       const { id } = req.params;
@@ -102,16 +102,32 @@ export const classController = {
   getClassEnrollments: async (req, res, next) => {
     try {
       const { id } = req.params;
-      const teacherId = req.user.id;
+      const userId = req.user.id;
+      const userRole = req.user.role;
       const { page = 1, limit = 10, status } = req.query;
       
-      const result = await classService.getClassEnrollments(id, teacherId, {
-        status,
-        page: parseInt(page),
-        limit: parseInt(limit)
-      });
-      
-      paginatedResponse(res, result.enrollments, result.pagination, 'Class enrollments retrieved successfully');
+      // Allow both teachers and admins to view enrollments
+      if (userRole === 'TEACHER') {
+        const result = await classService.getClassEnrollments(id, userId, {
+          status,
+          page: parseInt(page),
+          limit: parseInt(limit)
+        });
+        
+        paginatedResponse(res, result.enrollments, result.pagination, 'Class enrollments retrieved successfully');
+      } else if (userRole === 'ADMIN') {
+        // Admin can view any class enrollments
+        const result = await classService.getClassEnrollments(id, null, {
+          status,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          isAdmin: true
+        });
+        
+        paginatedResponse(res, result.enrollments, result.pagination, 'Class enrollments retrieved successfully');
+      } else {
+        return next(new Error('You do not have permission to view class enrollments'));
+      }
     } catch (error) {
       next(error);
     }
@@ -122,11 +138,100 @@ export const classController = {
     try {
       const { id, enrollmentId } = req.params;
       const { status } = req.body;
-      const teacherId = req.user.id;
+      const userId = req.user.id;
+      const userRole = req.user.role;
+      
+      // Allow both teachers and admins to update enrollment status
+      const teacherId = userRole === 'ADMIN' ? null : userId;
       
       const enrollment = await classService.updateEnrollmentStatus(id, enrollmentId, teacherId, status);
       
       successResponse(res, enrollment, 'Enrollment status updated successfully');
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // Get available students for enrollment
+  getAvailableStudents: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user.id;
+      const userRole = req.user.role;
+      const { page = 1, limit = 20, search, grade } = req.query;
+
+      const filters = {
+        ...(search && { search }),
+        ...(grade && { grade })
+      };
+
+      const result = await classService.getAvailableStudents(
+        id,
+        userId,
+        userRole,
+        filters,
+        { page: parseInt(page), limit: parseInt(limit) }
+      );
+
+      paginatedResponse(
+        res,
+        result.students,
+        result.pagination,
+        'Available students retrieved successfully'
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // Bulk enroll students
+  bulkEnrollStudents: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const { studentIds } = req.body;
+      const userId = req.user.id;
+      const userRole = req.user.role;
+
+      if (!Array.isArray(studentIds) || studentIds.length === 0) {
+        return next(new Error('Please provide an array of student IDs'));
+      }
+
+      const result = await classService.bulkEnrollStudents(
+        id,
+        studentIds,
+        userId,
+        userRole
+      );
+
+      successResponse(
+        res,
+        result,
+        `Successfully enrolled ${result.count} students in the class`
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // Remove student from class
+  removeStudentFromClass: async (req, res, next) => {
+    try {
+      const { id, studentId } = req.params;
+      const userId = req.user.id;
+      const userRole = req.user.role;
+
+      const result = await classService.removeStudentFromClass(
+        id,
+        studentId,
+        userId,
+        userRole
+      );
+
+      successResponse(
+        res,
+        result,
+        'Student removed from class successfully'
+      );
     } catch (error) {
       next(error);
     }
