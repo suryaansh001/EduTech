@@ -9,17 +9,36 @@ class RedisClient {
 
   async connect() {
     try {
-      this.client =  createClient({
-    username: 'default',
-    password: '8hxtXD9JxOVt8dKBCPpljeMgwGsVV6Zq',
-    socket: {
-        host: 'redis-10774.c61.us-east-1-3.ec2.redns.redis-cloud.com',
-        port: 10774
-    }
-});
+      // Use environment variables for Redis configuration
+      const redisConfig = {
+        socket: {
+          host: process.env.REDIS_HOST || 'localhost',
+          port: parseInt(process.env.REDIS_PORT) || 6379,
+          reconnectStrategy: (retries) => {
+            if (retries > 3) {
+              logger.warn('Redis connection failed after 3 retries. Running without Redis cache.');
+              return false; // Stop retrying
+            }
+            return Math.min(retries * 100, 3000);
+          }
+        }
+      };
+
+      // Add authentication if credentials are provided
+      if (process.env.REDIS_USERNAME) {
+        redisConfig.username = process.env.REDIS_USERNAME;
+      }
+      
+      if (process.env.REDIS_PASSWORD) {
+        redisConfig.password = process.env.REDIS_PASSWORD;
+      }
+
+      this.client = createClient(redisConfig);
 
       this.client.on('error', (err) => {
-        logger.error('Redis Client Error:', err);
+        if (err.code !== 'ECONNREFUSED') {
+          logger.error('Redis Client Error:', err);
+        }
         this.isConnected = false;
       });
 
@@ -34,8 +53,9 @@ class RedisClient {
       });
 
       await this.client.connect();
+      logger.info('✅ Redis connected successfully');
     } catch (error) {
-      logger.error('❌ Redis connection failed:', error);
+      logger.warn('⚠️ Redis connection failed - running without cache:', error.message);
       this.isConnected = false;
     }
   }

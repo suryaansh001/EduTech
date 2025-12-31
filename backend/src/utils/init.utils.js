@@ -1,13 +1,12 @@
-import { prisma } from '../config/database.js';
+import { prisma, database } from '../config/database.js';
 import { emailService } from '../services/email.service.js';
 import { logger } from './logger.utils.js';
 
 export const initializeApp = async () => {
   try {
-    // Check database connection
-    await prisma.$connect();
-    logger.info('✅ Database connected successfully');
-
+    // Connect to database
+    await database.connect();
+    
     // Verify email configuration
     const emailVerified = await emailService.verifyConnection();
     if (emailVerified) {
@@ -15,6 +14,14 @@ export const initializeApp = async () => {
     } else {
       logger.warn('⚠️ Email service configuration failed - email features may not work');
     }
+
+    // TODO: Add other initialization tasks here:
+    // - Initialize Redis connection
+    // - Seed default admin user if not exists
+    // - Initialize cache
+    // - Setup scheduled jobs
+    
+    logger.info('✅ Application initialized successfully');
 
   } catch (error) {
     logger.error('❌ Application initialization failed:', error);
