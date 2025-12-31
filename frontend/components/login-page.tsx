@@ -110,15 +110,15 @@ export function LoginPage() {
           <ThemeToggle />
         </div>
 
-        <Card className="w-full max-w-md shadow-2xl border-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm">
+        <Card className="w-full max-w-md shadow-2xl border-2 border-blue-500 dark:border-white/40 bg-white/90 dark:bg-gray-900/60 backdrop-blur-xl rounded-3xl">
           <CardHeader className="text-center space-y-4">
             <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center">
               <GraduationCap className="w-8 h-8 text-white" />
             </div>
-            <CardTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            <CardTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent dark:from-white dark:to-blue-200">
               Reset Password
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-blue-700 dark:text-white/70">
               {forgotPasswordSent 
                 ? "Check your email for password reset instructions"
                 : "Enter your email to receive a password reset link"
@@ -208,28 +208,28 @@ export function LoginPage() {
         <ThemeToggle />
       </div>
 
-      <Card className="w-full max-w-md shadow-2xl border-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm">
+      <Card className="w-full max-w-md shadow-2xl border-2 border-blue-500 dark:border-white/40 bg-white/90 dark:bg-gray-900/60 backdrop-blur-xl rounded-3xl">
         <CardHeader className="text-center space-y-4">
           <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center">
             <GraduationCap className="w-8 h-8 text-white" />
           </div>
-          <CardTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+          <CardTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent dark:from-white dark:to-blue-200">
             EduPlatform
           </CardTitle>
-          <CardDescription>Sign in to your account</CardDescription>
+          <CardDescription className="text-blue-700 dark:text-white/70">Sign in to your account</CardDescription>
         </CardHeader>
 
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email" className="text-blue-700 dark:text-white">Email</Label>
               <Input
                 id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Enter your email"
-                className="rounded-xl transition-all duration-200 focus:scale-[1.02]"
+                className="rounded-xl transition-all duration-200 focus:scale-[1.02] border-2 border-blue-400 dark:border-white/40"
                 required
                 disabled={isLoading}
                 autoComplete="email"
@@ -237,15 +237,15 @@ export function LoginPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <div className="relative">
+              <Label htmlFor="password" className="text-blue-700 dark:text-white">Password</Label>
+              <div className="relative flex items-center">
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
-                  className="rounded-xl transition-all duration-200 focus:scale-[1.02] pr-10"
+                  className="rounded-xl transition-all duration-200 focus:scale-[1.02] pr-12 border-2 border-blue-400 dark:border-white/40"
                   required
                   disabled={isLoading}
                   autoComplete="current-password"
@@ -253,13 +253,13 @@ export function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                  className="absolute right-3 flex items-center justify-center h-full text-blue-500 hover:text-blue-700 dark:text-white/70 dark:hover:text-white transition-colors"
                   tabIndex={-1}
                 >
                   {showPassword ? (
-                    <EyeOff className="w-4 h-4" />
+                    <EyeOff className="w-5 h-5" />
                   ) : (
-                    <Eye className="w-4 h-4" />
+                    <Eye className="w-5 h-5" />
                   )}
                 </button>
               </div>
@@ -302,15 +302,15 @@ export function LoginPage() {
             </Button>
           </form>
 
-          <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
-            <p className="text-center text-sm text-gray-600 dark:text-gray-400 mb-2">
+          <div className="mt-6 p-4 bg-blue-50 dark:bg-white/5 rounded-2xl border-2 border-blue-300 dark:border-white/20">
+            <p className="text-center text-sm text-blue-700 dark:text-white mb-2">
               <strong>Demo Credentials:</strong>
             </p>
-            <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+            <div className="text-xs text-blue-600 dark:text-white/80 space-y-1">
               <p>• Admin: admin@edutech.com</p>
               <p>• Teacher: teacher@edutech.com</p>
               <p>• Student: student@edutech.com</p>
-              <p className="mt-2 text-gray-400">Password: Password123!</p>
+              <p className="mt-2 text-blue-500 dark:text-white/60">Password: Password123!</p>
             </div>
           </div>
         </CardContent>
