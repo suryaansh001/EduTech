@@ -250,6 +250,12 @@ export const userService = {
 
   // Get user statistics
   getUserStatistics: async (userId, userRole) => {
+    /**
+     * SECURITY: Statistics are role-based
+     * - Admin: Full platform statistics
+     * - Teacher: Own classes and students statistics
+     * - Student: Own enrollment and performance statistics
+     */
     const baseStats = {
       totalClasses: 0,
       totalQuizzes: 0,
@@ -259,7 +265,7 @@ export const userService = {
     };
 
     if (userRole === 'TEACHER') {
-      const [classCount, quizCount, enrollmentCount, quizStats] = await Promise.all([
+      const [classCount, quizCount, enrollmentCount, quizStats, recentActivities] = await Promise.all([
         prisma.class.count({ where: { teacherId: userId } }),
         prisma.quiz.count({ 
           where: { 
@@ -280,6 +286,27 @@ export const userService = {
           },
           _avg: { score: true },
           _count: true
+        }),
+        // Get recent quiz attempts for teacher's classes
+        prisma.quizAttempt.findMany({
+          where: {
+            quiz: {
+              class: { teacherId: userId }
+            }
+          },
+          select: {
+            id: true,
+            score: true,
+            completedAt: true,
+            user: {
+              select: { name: true, profileImage: true }
+            },
+            quiz: {
+              select: { title: true }
+            }
+          },
+          orderBy: { completedAt: 'desc' },
+          take: 5
         })
       ]);
 
@@ -288,10 +315,17 @@ export const userService = {
         totalQuizzes: quizCount,
         totalStudents: enrollmentCount,
         totalQuizAttempts: quizStats._count,
-        averageStudentScore: quizStats._avg.score || 0
+        averageStudentScore: quizStats._avg.score || 0,
+        recentActivities: recentActivities.map(a => ({
+          id: a.id,
+          user: a.user.name,
+          action: `completed "${a.quiz.title}" with score ${a.score}%`,
+          time: formatTimeAgo(a.completedAt),
+          avatar: a.user.profileImage
+        }))
       };
     } else if (userRole === 'STUDENT') {
-      const [enrollmentCount, quizAttemptStats, completedCourses] = await Promise.all([
+      const [enrollmentCount, quizAttemptStats, completedCourses, recentAttempts] = await Promise.all([
         prisma.enrollment.count({ 
           where: { 
             userId,
@@ -308,6 +342,19 @@ export const userService = {
             userId,
             status: 'COMPLETED'
           }
+        }),
+        prisma.quizAttempt.findMany({
+          where: { userId },
+          select: {
+            id: true,
+            score: true,
+            completedAt: true,
+            quiz: {
+              select: { title: true }
+            }
+          },
+          orderBy: { completedAt: 'desc' },
+          take: 5
         })
       ]);
 
@@ -315,24 +362,119 @@ export const userService = {
         totalEnrollments: enrollmentCount,
         totalQuizAttempts: quizAttemptStats._count,
         averageScore: quizAttemptStats._avg.score || 0,
-        completedCourses
+        completedCourses,
+        recentActivities: recentAttempts.map(a => ({
+          id: a.id,
+          user: 'You',
+          action: `completed "${a.quiz.title}" with score ${a.score}%`,
+          time: formatTimeAgo(a.completedAt)
+        }))
       };
     } else if (userRole === 'ADMIN') {
-      const [userCount, classCount, quizCount, enrollmentCount] = await Promise.all([
-        prisma.user.count(),
+      const [
+        studentCount, 
+        teacherCount, 
+        classCount, 
+        quizCount, 
+        enrollmentCount,
+        recentUsers,
+        recentClasses
+      ] = await Promise.all([
+        prisma.user.count({ where: { role: 'STUDENT' } }),
+        prisma.user.count({ where: { role: 'TEACHER' } }),
         prisma.class.count(),
         prisma.quiz.count(),
-        prisma.enrollment.count()
+        prisma.enrollment.count({ where: { status: 'ACTIVE' } }),
+        // Recent user registrations
+        prisma.user.findMany({
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            profileImage: true,
+            createdAt: true
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 3
+        }),
+        // Recent classes created
+        prisma.class.findMany({
+          select: {
+            id: true,
+            title: true,
+            createdAt: true,
+            teacher: {
+              select: { name: true }
+            }
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 3
+        })
       ]);
 
+      // Build recent activities
+      const recentActivities = [];
+      
+      for (const user of recentUsers) {
+        recentActivities.push({
+          id: user.id,
+          user: user.name,
+          action: `registered as ${user.role.toLowerCase()}`,
+          time: formatTimeAgo(user.createdAt),
+          avatar: user.profileImage
+        });
+      }
+      
+      for (const cls of recentClasses) {
+        recentActivities.push({
+          id: cls.id,
+          user: cls.teacher.name,
+          action: `created class "${cls.title}"`,
+          time: formatTimeAgo(cls.createdAt)
+        });
+      }
+
+      // Sort by time and take top 5
+      recentActivities.sort((a, b) => {
+        return new Date(b.time).getTime() - new Date(a.time).getTime();
+      });
+
       return {
-        totalUsers: userCount,
+        totalStudents: studentCount,
+        totalTeachers: teacherCount,
         totalClasses: classCount,
         totalQuizzes: quizCount,
-        totalEnrollments: enrollmentCount
+        activeEnrollments: enrollmentCount,
+        recentActivities: recentActivities.slice(0, 5),
+        notifications: [
+          { id: '1', message: `${studentCount} students registered`, time: 'Today', type: 'info' },
+          { id: '2', message: `${enrollmentCount} active enrollments`, time: 'Today', type: 'success' }
+        ]
       };
     }
 
     return baseStats;
   }
 };
+
+/**
+ * Helper function to format time ago
+ * REASON: Provides user-friendly time display
+ */
+function formatTimeAgo(date) {
+  const now = new Date();
+  const past = new Date(date);
+  const diffMs = now - past;
+  const diffSecs = Math.floor(diffMs / 1000);
+  const diffMins = Math.floor(diffSecs / 60);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffSecs < 60) return 'Just now';
+  if (diffMins < 60) return `${diffMins} min ago`;
+  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+  if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+  
+  return past.toLocaleDateString();
+}

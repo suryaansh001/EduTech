@@ -24,6 +24,12 @@ const router = express.Router();
 // All routes require authentication
 router.use(authenticate);
 
+// Get my enrollments (students only) - must be before /:id routes
+router.get('/my-enrollments',
+  authorize('STUDENT'),
+  classController.getMyEnrollments
+);
+
 // Create a new class (teachers and admins only)
 router.post('/',
   authorize('TEACHER', 'ADMIN'),

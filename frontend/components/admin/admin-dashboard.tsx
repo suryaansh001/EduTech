@@ -1,32 +1,151 @@
 "use client"
 
-import { useState } from "react"
+/**
+ * Admin Dashboard Component
+ * 
+ * SECURITY FEATURES:
+ * 1. Data fetched from authenticated API endpoints only
+ * 2. Role-based access enforced by backend
+ * 3. No sensitive data exposed in component state
+ * 4. Error handling prevents information leakage
+ */
+
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Progress } from "@/components/ui/progress"
-import { Users, GraduationCap, BookOpen, Calendar, TrendingUp, Bell, Plus } from "lucide-react"
+import { Users, GraduationCap, BookOpen, Calendar, TrendingUp, Bell, Plus, Loader2, AlertCircle, RefreshCw } from "lucide-react"
+import { usersApi, classesApi, analyticsApi, ApiError } from "@/lib/api"
+
+interface DashboardStats {
+  totalStudents: number;
+  totalTeachers: number;
+  totalClasses: number;
+  activeEnrollments: number;
+  recentActivities: Array<{
+    id: string;
+    user: string;
+    action: string;
+    time: string;
+    avatar?: string;
+  }>;
+  notifications: Array<{
+    id: string;
+    message: string;
+    time: string;
+    type: 'info' | 'success' | 'warning';
+  }>;
+}
 
 export function AdminDashboard() {
-  const [notifications] = useState([
-    { id: 1, message: "New student registration pending approval", time: "2 hours ago", type: "info" },
-    { id: 2, message: "Class schedule updated for Batch A", time: "4 hours ago", type: "success" },
-    { id: 3, message: "Teacher John requested leave for tomorrow", time: "1 day ago", type: "warning" },
-  ])
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const stats = [
-    { title: "Total Students", value: "1,234", change: "+12%", icon: Users, color: "blue" },
-    { title: "Active Teachers", value: "56", change: "+3%", icon: GraduationCap, color: "green" },
-    { title: "Total Classes", value: "89", change: "+8%", icon: BookOpen, color: "purple" },
-    { title: "This Month", value: "234", change: "+15%", icon: Calendar, color: "orange" },
-  ]
+  /**
+   * Fetch dashboard data from backend
+   * SECURITY: All data comes from authenticated API endpoints
+   */
+  const fetchDashboardData = async () => {
+    setIsLoading(true);
+    setError(null);
 
-  const recentActivities = [
-    { user: "Alice Johnson", action: "completed Math Quiz", time: "5 min ago", avatar: "/api/placeholder/32/32" },
-    { user: "Bob Smith", action: "uploaded new notes", time: "15 min ago", avatar: "/api/placeholder/32/32" },
-    { user: "Carol Davis", action: "scheduled new class", time: "1 hour ago", avatar: "/api/placeholder/32/32" },
-  ]
+    try {
+      // Fetch multiple data sources in parallel for efficiency
+      const [usersResponse, classesResponse] = await Promise.all([
+        usersApi.getStats(),
+        classesApi.getClasses({ status: 'ACTIVE', limit: 5 }),
+      ]);
+
+      // Process the responses
+      const dashboardStats: DashboardStats = {
+        totalStudents: usersResponse.data?.totalStudents || 0,
+        totalTeachers: usersResponse.data?.totalTeachers || 0,
+        totalClasses: usersResponse.data?.totalClasses || classesResponse.data?.pagination?.total || 0,
+        activeEnrollments: usersResponse.data?.activeEnrollments || 0,
+        recentActivities: usersResponse.data?.recentActivities || [],
+        notifications: usersResponse.data?.notifications || [],
+      };
+
+      setStats(dashboardStats);
+    } catch (err) {
+      // SECURITY: Don't expose detailed error information
+      const message = err instanceof ApiError 
+        ? err.message 
+        : 'Failed to load dashboard data. Please try again.';
+      setError(message);
+      console.error('Dashboard fetch error:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-600" />
+          <p className="text-gray-600 dark:text-gray-400">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Card className="max-w-md w-full">
+          <CardContent className="p-6 text-center space-y-4">
+            <AlertCircle className="w-12 h-12 mx-auto text-red-500" />
+            <p className="text-gray-600 dark:text-gray-400">{error}</p>
+            <Button onClick={fetchDashboardData} variant="outline">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Try Again
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Fallback data if API returns empty
+  const displayStats = stats || {
+    totalStudents: 0,
+    totalTeachers: 0,
+    totalClasses: 0,
+    activeEnrollments: 0,
+    recentActivities: [],
+    notifications: [],
+  };
+
+  const statCards = [
+    { title: "Total Students", value: displayStats.totalStudents.toLocaleString(), change: "+12%", icon: Users, color: "blue" },
+    { title: "Active Teachers", value: displayStats.totalTeachers.toLocaleString(), change: "+3%", icon: GraduationCap, color: "green" },
+    { title: "Total Classes", value: displayStats.totalClasses.toLocaleString(), change: "+8%", icon: BookOpen, color: "purple" },
+    { title: "Enrollments", value: displayStats.activeEnrollments.toLocaleString(), change: "+15%", icon: Calendar, color: "orange" },
+  ];
+
+  // Default activities if none from API
+  const activities = displayStats.recentActivities.length > 0 
+    ? displayStats.recentActivities 
+    : [
+        { id: '1', user: "System", action: "Dashboard initialized", time: "Just now", avatar: undefined },
+      ];
+
+  // Default notifications if none from API
+  const notifications = displayStats.notifications.length > 0
+    ? displayStats.notifications
+    : [
+        { id: '1', message: "Welcome to the Admin Dashboard", time: "Just now", type: 'info' as const },
+      ];
 
   return (
     <div className="space-y-6 p-6">
@@ -36,15 +155,21 @@ export function AdminDashboard() {
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Admin Dashboard</h1>
           <p className="text-gray-600 dark:text-gray-400">Welcome back! Here's what's happening today.</p>
         </div>
-        <Button className="rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700">
-          <Plus className="w-4 h-4 mr-2" />
-          Quick Action
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={fetchDashboardData} className="rounded-xl">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Refresh
+          </Button>
+          <Button className="rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700">
+            <Plus className="w-4 h-4 mr-2" />
+            Quick Action
+          </Button>
+        </div>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, index) => {
+        {statCards.map((stat, index) => {
           const Icon = stat.icon
           return (
             <Card
@@ -83,9 +208,9 @@ export function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {recentActivities.map((activity, index) => (
+              {activities.map((activity) => (
                 <div
-                  key={index}
+                  key={activity.id}
                   className="flex items-center space-x-4 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                 >
                   <Avatar className="h-10 w-10">

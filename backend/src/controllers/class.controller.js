@@ -40,6 +40,22 @@ export const classController = {
     }
   },
 
+  /**
+   * Get my enrollments (for students)
+   * REASON: Allow students to see their enrolled classes with schedules
+   */
+  getMyEnrollments: async (req, res, next) => {
+    try {
+      const studentId = req.user.id;
+      
+      const enrollments = await classService.getStudentEnrollments(studentId);
+      
+      successResponse(res, enrollments, 'Enrollments retrieved successfully');
+    } catch (error) {
+      next(error);
+    }
+  },
+
   // Get a specific class
   getClass: async (req, res, next) => {
     try {

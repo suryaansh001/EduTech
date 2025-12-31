@@ -309,6 +309,59 @@ export const classService = {
     return updatedClass;
   },
 
+  /**
+   * Get student enrollments
+   * REASON: Allow students to see all their enrolled classes with schedules
+   */
+  getStudentEnrollments: async (studentId) => {
+    const enrollments = await prisma.enrollment.findMany({
+      where: {
+        userId: studentId,
+        status: 'ACTIVE'
+      },
+      include: {
+        class: {
+          include: {
+            teacher: {
+              select: {
+                id: true,
+                user: {
+                  select: {
+                    firstName: true,
+                    lastName: true,
+                    email: true
+                  }
+                }
+              }
+            },
+            schedules: {
+              select: {
+                id: true,
+                dayOfWeek: true,
+                startTime: true,
+                endTime: true,
+                room: true
+              }
+            },
+            _count: {
+              select: {
+                enrollments: true,
+                quizzes: true,
+                notes: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: {
+        enrolledAt: 'desc'
+      }
+    });
+
+    logger.info(`Retrieved ${enrollments.length} enrollments for student ${studentId}`);
+    return enrollments;
+  },
+
   // Delete a class
   deleteClass: async (classId, teacherId) => {
     // Verify ownership
