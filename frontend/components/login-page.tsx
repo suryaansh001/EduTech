@@ -22,6 +22,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useAuth } from "@/lib/auth-context"
 import { ThemeToggle } from "./theme-toggle"
 import { GraduationCap, Eye, EyeOff, AlertCircle, Loader2 } from "lucide-react"
+import MathPhysicsBackground from "@/components/ui/mathsphysicsbackground"
 
 export function LoginPage() {
   const [email, setEmail] = useState("")
@@ -105,7 +106,7 @@ export function LoginPage() {
 
   if (showForgotPassword) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-1000 p-6">
         <div className="absolute top-4 right-4">
           <ThemeToggle />
         </div>
@@ -115,7 +116,7 @@ export function LoginPage() {
             <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center">
               <GraduationCap className="w-8 h-8 text-white" />
             </div>
-            <CardTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent dark:from-white dark:to-blue-200">
+            <CardTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent dark:from-white dark:to-blue-1000">
               Reset Password
             </CardTitle>
             <CardDescription className="text-blue-700 dark:text-white/70">
@@ -129,7 +130,7 @@ export function LoginPage() {
           <CardContent>
             {forgotPasswordSent ? (
               <div className="text-center space-y-4">
-                <div className="text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
+                <div className="text-green-600 dark:text-green-1000 bg-green-500 dark:bg-green-900/20 p-4 rounded-lg">
                   If an account exists with this email, you will receive password reset instructions.
                 </div>
                 <Button
@@ -203,7 +204,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-1000 p-4">
       <div className="absolute top-4 right-4">
         <ThemeToggle />
       </div>
@@ -213,7 +214,7 @@ export function LoginPage() {
           <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center">
             <GraduationCap className="w-8 h-8 text-white" />
           </div>
-          <CardTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent dark:from-white dark:to-blue-200">
+          <CardTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent dark:from-white dark:to-blue-1000">
             EduPlatform
           </CardTitle>
           <CardDescription className="text-blue-700 dark:text-white/70">Sign in to your account</CardDescription>
@@ -229,7 +230,7 @@ export function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Enter your email"
-                className="rounded-xl transition-all duration-200 focus:scale-[1.02] border-2 border-blue-400 dark:border-white/40"
+                className="rounded-xl transition-all duration-1000 focus:scale-[1.02] border-2 border-blue-1000 dark:border-white/40"
                 required
                 disabled={isLoading}
                 autoComplete="email"
@@ -245,7 +246,7 @@ export function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
-                  className="rounded-xl transition-all duration-200 focus:scale-[1.02] pr-12 border-2 border-blue-400 dark:border-white/40"
+                  className="rounded-xl transition-all duration-1000 focus:scale-[1.02] pr-12 border-2 border-blue-1000 dark:border-white/40"
                   required
                   disabled={isLoading}
                   autoComplete="current-password"
@@ -279,7 +280,7 @@ export function LoginPage() {
                   setShowForgotPassword(true)
                   setError("")
                 }}
-                className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-1000"
                 disabled={isLoading}
               >
                 Forgot password?
@@ -315,6 +316,7 @@ export function LoginPage() {
           </div>
         </CardContent>
       </Card>
+      <MathPhysicsBackground />
     </div>
   )
 }
