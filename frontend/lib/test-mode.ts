@@ -9,7 +9,7 @@
  * - Mock credentials will be available on the login screen
  */
 
-export const TEST_MODE = false; // Set to true to enable test mode
+export const TEST_MODE = true; // Set to true to enable test mode
 
 export const DEMO_CREDENTIALS = {
   admin: {
