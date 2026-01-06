@@ -37,17 +37,26 @@ const server = createServer(app);
 /**
  * Initialize Socket.IO with CORS configuration
  * SECURITY: Restrict origins to prevent unauthorized WebSocket connections
+ * NOTE: Skip in serverless environments like Vercel
  */
-const io = new Server(server, {
-  cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:3000",
-    methods: ["GET", "POST"],
-    credentials: true
-  }
-});
+let io;
+if (process.env.VERCEL !== '1') {
+  io = new Server(server, {
+    cors: {
+      origin: process.env.CLIENT_URL || "http://localhost:3000",
+      methods: ["GET", "POST"],
+      credentials: true
+    }
+  });
 
-// Connect to Redis
-connectRedis();
+  // Initialize Socket.IO handlers
+  initializeSocket(io);
+}
+
+// Connect to Redis (skip in serverless environments)
+if (process.env.VERCEL !== '1') {
+  connectRedis();
+}
 
 /**
  * SECURITY MIDDLEWARE STACK
