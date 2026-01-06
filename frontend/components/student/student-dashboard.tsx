@@ -106,8 +106,8 @@ export function StudentDashboard() {
       const [enrollmentsRes, statsRes, announcementsRes, notesRes, quizzesRes] = await Promise.all([
         classesApi.getMyEnrollments(),
         usersApi.getStats(),
-        announcementsApi.getAll(),
-        notesApi.getAll(),
+        announcementsApi.getAnnouncements(),
+        notesApi.getNotes(),
         quizzesApi.getMyAttempts()
       ]);
 
@@ -120,11 +120,11 @@ export function StudentDashboard() {
       }
 
       if (announcementsRes.success && announcementsRes.data) {
-        setAnnouncements(announcementsRes.data.slice(0, 5));
+        setAnnouncements((announcementsRes.data.announcements || []).slice(0, 5));
       }
 
       if (notesRes.success && notesRes.data) {
-        setNotes(notesRes.data.slice(0, 6)); // Show latest 6 notes
+        setNotes((notesRes.data.notes || []).slice(0, 6)); // Show latest 6 notes
       }
 
       if (quizzesRes.success && quizzesRes.data) {
@@ -299,7 +299,7 @@ export function StudentDashboard() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Student Dashboard</h1>
           <p className="text-gray-600 dark:text-gray-400">
-            Welcome back, {user?.firstName}! Here's your learning progress.
+            Welcome back, {user?.firstName || user?.name}! Here's your learning progress.
           </p>
         </div>
         <div className="flex items-center space-x-2">

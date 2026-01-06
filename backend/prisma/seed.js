@@ -258,12 +258,162 @@ Algebra is a branch of mathematics that deals with symbols and the rules for man
       }
     }
 
+    // Create additional sample classes for better testing experience
+    const adminUser = await prisma.user.findUnique({
+      where: { email: 'admin@edutech.com' }
+    });
+
+    if (teacher && student && adminUser) {
+      // Science class
+      const scienceClassExists = await prisma.class.findFirst({
+        where: { title: 'General Science' }
+      });
+
+      if (!scienceClassExists) {
+        const scienceClass = await prisma.class.create({
+          data: {
+            title: 'General Science',
+            description: 'Explore the fundamentals of physics, chemistry, and biology. Hands-on experiments and interactive learning.',
+            subject: 'Science',
+            grade: '10th Grade',
+            maxStudents: 35,
+            status: 'ACTIVE',
+            startDate: new Date(),
+            endDate: new Date(Date.now() + 120 * 24 * 60 * 60 * 1000),
+            teacherId: teacher.id,
+          }
+        });
+
+        await prisma.enrollment.create({
+          data: {
+            userId: student.id,
+            classId: scienceClass.id,
+            status: 'ACTIVE',
+            progress: 45
+          }
+        });
+
+        // Add quiz to science class
+        await prisma.quiz.create({
+          data: {
+            title: 'Physics Basics Quiz',
+            description: 'Test your understanding of fundamental physics concepts',
+            classId: scienceClass.id,
+            timeLimit: 40,
+            totalMarks: 25,
+            isActive: true,
+            questions: {
+              create: [
+                {
+                  type: 'MULTIPLE_CHOICE',
+                  question: 'What is the SI unit of force?',
+                  options: ['Watt', 'Newton', 'Joule', 'Pascal'],
+                  correctAnswer: 'Newton',
+                  marks: 5,
+                  order: 1
+                },
+                {
+                  type: 'MULTIPLE_CHOICE',
+                  question: 'Which of the following is NOT a type of energy?',
+                  options: ['Kinetic', 'Potential', 'Thermal', 'Temporal'],
+                  correctAnswer: 'Temporal',
+                  marks: 5,
+                  order: 2
+                }
+              ]
+            }
+          }
+        });
+
+        // Add notes to science class
+        await prisma.note.create({
+          data: {
+            title: 'Chapter 1: Laws of Motion',
+            content: `# Newton's Laws of Motion
+
+## First Law of Motion
+An object at rest stays at rest, and an object in motion stays in motion unless acted upon by a net force.
+
+## Second Law of Motion
+Force equals mass times acceleration (F = ma)
+
+## Third Law of Motion
+For every action, there is an equal and opposite reaction.
+
+## Key Formulas
+- Velocity: v = u + at
+- Distance: s = ut + 1/2 at²
+- Force: F = ma
+            `.trim(),
+            subject: 'Physics',
+            tags: ['physics', 'motion', 'newton'],
+            isPublic: true,
+            classId: scienceClass.id,
+            authorId: teacher.id
+          }
+        });
+
+        logger.info('✅ Science class with quiz and notes created');
+      }
+
+      // English class
+      const englishClassExists = await prisma.class.findFirst({
+        where: { title: 'English Literature' }
+      });
+
+      if (!englishClassExists) {
+        const englishClass = await prisma.class.create({
+          data: {
+            title: 'English Literature',
+            description: 'Study classic and contemporary literature, develop critical thinking and analytical skills.',
+            subject: 'English',
+            grade: '10th Grade',
+            maxStudents: 30,
+            status: 'ACTIVE',
+            startDate: new Date(),
+            endDate: new Date(Date.now() + 100 * 24 * 60 * 60 * 1000),
+            teacherId: teacher.id,
+          }
+        });
+
+        await prisma.enrollment.create({
+          data: {
+            userId: student.id,
+            classId: englishClass.id,
+            status: 'ACTIVE',
+            progress: 60
+          }
+        });
+
+        logger.info('✅ English Literature class created');
+      }
+    }
+
+    logger.info('');
     logger.info('🎉 Database seeded successfully!');
     logger.info('');
-    logger.info('📝 Demo Credentials:');
-    logger.info('   Admin: admin@edutech.com / Password123!');
-    logger.info('   Teacher: teacher@edutech.com / Password123!');
-    logger.info('   Student: student@edutech.com / Password123!');
+    logger.info('═══════════════════════════════════════════════════════');
+    logger.info('📝 TEST MODE - Demo Credentials for UI Testing:');
+    logger.info('═══════════════════════════════════════════════════════');
+    logger.info('');
+    logger.info('👨‍💼 ADMIN Account:');
+    logger.info('   Email: admin@edutech.com');
+    logger.info('   Password: Password123!');
+    logger.info('   Access: Full system administration, user management');
+    logger.info('');
+    logger.info('👨‍🏫 TEACHER Account:');
+    logger.info('   Email: teacher@edutech.com');
+    logger.info('   Password: Password123!');
+    logger.info('   Access: Create classes, quizzes, manage students');
+    logger.info('   Demo Data: 3 classes (Math, Science, English)');
+    logger.info('');
+    logger.info('👨‍🎓 STUDENT Account:');
+    logger.info('   Email: student@edutech.com');
+    logger.info('   Password: Password123!');
+    logger.info('   Access: View classes, take quizzes, view notes');
+    logger.info('   Demo Data: Enrolled in all 3 classes with sample content');
+    logger.info('');
+    logger.info('═══════════════════════════════════════════════════════');
 
   } catch (error) {
     logger.error('❌ Error seeding database:', error);

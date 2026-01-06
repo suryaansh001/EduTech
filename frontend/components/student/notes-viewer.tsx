@@ -54,10 +54,10 @@ export function NotesViewer() {
   const fetchNotes = async () => {
     try {
       setError(null);
-      const response = await notesApi.getAll();
+      const response = await notesApi.getNotes();
       
       if (response.success && response.data) {
-        setNotes(response.data);
+        setNotes(response.data.notes || []);
       }
     } catch (err: any) {
       console.error('Failed to fetch notes:', err);
@@ -161,10 +161,9 @@ export function NotesViewer() {
       // If note has attachments, download the first one
       if (note.attachments && note.attachments.length > 0) {
         const attachment = note.attachments[0];
-        const response = await filesApi.download(attachment.id);
+        const blob = await filesApi.download(attachment.id);
         
         // Create download link
-        const blob = new Blob([response], { type: attachment.fileType });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;

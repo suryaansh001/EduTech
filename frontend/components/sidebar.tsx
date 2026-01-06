@@ -104,7 +104,7 @@ export function Sidebar({ activeItem, onItemClick, userRole, isCollapsed = false
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center space-x-3">
             <Avatar className="h-10 w-10">
-              <AvatarImage src={user?.avatar || "/placeholder.svg"} />
+              <AvatarImage src={user?.profileImage || user?.avatar || "/placeholder.svg"} />
               <AvatarFallback className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white">
                 {user?.name?.charAt(0)}
               </AvatarFallback>

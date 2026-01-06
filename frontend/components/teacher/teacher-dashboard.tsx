@@ -73,13 +73,13 @@ export function TeacherDashboard() {
       
       // Fetch all data in parallel for better performance
       const [classesResponse, statsResponse, announcementsResponse] = await Promise.all([
-        classesApi.getAll(),
+        classesApi.getClasses(),
         usersApi.getStats(),
-        announcementsApi.getAll()
+        announcementsApi.getAnnouncements()
       ]);
 
       if (classesResponse.success && classesResponse.data) {
-        setClasses(classesResponse.data);
+        setClasses(classesResponse.data.classes || []);
       }
 
       if (statsResponse.success && statsResponse.data) {
@@ -87,7 +87,7 @@ export function TeacherDashboard() {
       }
 
       if (announcementsResponse.success && announcementsResponse.data) {
-        setAnnouncements(announcementsResponse.data.slice(0, 5)); // Only show latest 5
+        setAnnouncements((announcementsResponse.data.announcements || []).slice(0, 5)); // Only show latest 5
       }
 
     } catch (err: any) {
@@ -221,7 +221,7 @@ export function TeacherDashboard() {
           <div className="text-center flex-1 space-y-4">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Teacher Dashboard</h1>
             <p className="text-gray-600 dark:text-gray-400">
-              Welcome back, {user?.firstName}! Select a batch to view specific dashboard
+              Welcome back, {user?.firstName || user?.name}! Select a batch to view specific dashboard
             </p>
           </div>
           <Button 

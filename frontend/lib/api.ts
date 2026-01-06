@@ -14,7 +14,7 @@
  */
 
 // API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = (import.meta as any).env.VITE_API_URL || 'http://localhost:5000/api';
 
 // Token storage keys - using constants prevents typos
 const TOKEN_KEY = 'edutech_token';
@@ -1055,6 +1055,29 @@ export const filesApi = {
       data: { files: any[]; pagination: any };
       message: string;
     }>(`/files${query ? `?${query}` : ''}`);
+  },
+  
+  /**
+   * Download file
+   */
+  download: async (id: string) => {
+    const token = tokenManager.getToken();
+    
+    const response = await fetch(`${API_BASE_URL}/files/${id}/download`, {
+      method: 'GET',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      credentials: 'include',
+    });
+    
+    if (!response.ok) {
+      const data = await response.json();
+      throw new ApiError(response.status, data.message || 'File download failed');
+    }
+    
+    return response.blob();
   },
   
   /**
