@@ -79,7 +79,7 @@ app.use(helmet({
       scriptSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", process.env.CLIENT_URL || "http://localhost:3000"],
+      connectSrc: ["'self'", process.env.CLIENT_URL || "http://localhost:3000", "https://the-edtech.vercel.app"],
     },
   },
   crossOriginEmbedderPolicy: false, // Allow embedding for educational content
@@ -92,7 +92,8 @@ app.use(cors({
     const allowedOrigins = [
       process.env.CLIENT_URL || "http://localhost:3000",
       "http://localhost:5173", // Vite dev server
-      "http://localhost:3000"
+      "http://localhost:3000",
+      "https://the-edtech.vercel.app" // Vercel deployment
     ];
     
     // Allow requests with no origin (mobile apps, Postman)
