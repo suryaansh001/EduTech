@@ -1,0 +1,11 @@
+#create a .gitingore
+
+# Ignore environment variable files
+.env
+.env.local
+.env.*.local
+.env.production
+.env.production.local
+.env.development
+.env.development.local
+.env.test

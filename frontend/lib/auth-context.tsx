@@ -16,7 +16,6 @@
 import type React from "react"
 import { createContext, useContext, useState, useEffect, useCallback } from "react"
 import { authApi, tokenManager, ApiError } from "./api"
-import { TEST_MODE, validateTestCredentials } from "./test-mode"
 
 // Map backend roles to frontend roles (lowercase)
 type UserRole = "admin" | "teacher" | "student"
@@ -158,22 +157,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // SECURITY: Input validation
       if (!email || !password) {
         return { success: false, message: 'Email and password are required' }
-      }
-
-      // TEST MODE: Check demo credentials first
-      if (TEST_MODE) {
-        const testResult = validateTestCredentials(email, password)
-        if (testResult.valid && testResult.user) {
-          setUser(testResult.user)
-          // Store test user in localStorage for persistence
-          tokenManager.setToken('test_token_' + testResult.user.id)
-          tokenManager.setUser(testResult.user)
-          return { 
-            success: true, 
-            isFirstLogin: false,
-            message: `Welcome back, ${testResult.user.firstName}! (Test Mode)`
-          }
-        }
       }
 
       const response = await authApi.login(email, password)

@@ -21,9 +21,8 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuth } from "@/lib/auth-context"
 import { ThemeToggle } from "./theme-toggle"
-import { GraduationCap, Eye, EyeOff, AlertCircle, Loader2, TestTube } from "lucide-react"
+import { GraduationCap, Eye, EyeOff, AlertCircle, Loader2 } from "lucide-react"
 import MathPhysicsBackground from "@/components/ui/mathsphysicsbackground"
-import { TEST_MODE } from "@/lib/test-mode"
 
 export function LoginPage() {
   const [email, setEmail] = useState("")
@@ -209,13 +208,6 @@ export function LoginPage() {
       <div className="absolute top-4 right-4">
         <ThemeToggle />
       </div>
-
-      {TEST_MODE && (
-        <div className="fixed top-4 left-4 bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-400 dark:border-yellow-500 text-yellow-800 dark:text-yellow-100 px-4 py-2 rounded-lg flex items-center gap-2 text-sm">
-          <TestTube className="w-4 h-4" />
-          <span>TEST MODE ENABLED - Using mock data</span>
-        </div>
-      )}
 
       <Card className="w-full max-w-md shadow-2xl border-2 border-blue-500 dark:border-white/40 bg-white/90 dark:bg-gray-900/60 backdrop-blur-xl rounded-3xl">
         <CardHeader className="text-center space-y-4">

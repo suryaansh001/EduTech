@@ -4,19 +4,9 @@ import { logger } from '../utils/logger.utils.js';
 
 class Database {
   constructor() {
-    // Reuse Prisma client in serverless environments to avoid connection issues
-    if (process.env.VERCEL === '1') {
-      if (!global.prisma) {
-        global.prisma = new PrismaClient({
-          log: process.env.NODE_ENV === 'development' ? ['query', 'info', 'warn', 'error'] : ['error'],
-        });
-      }
-      this.prisma = global.prisma;
-    } else {
-      this.prisma = new PrismaClient({
-        log: process.env.NODE_ENV === 'development' ? ['query', 'info', 'warn', 'error'] : ['error'],
-      });
-    }
+    this.prisma = new PrismaClient({
+      log: process.env.NODE_ENV === 'development' ? ['query', 'info', 'warn', 'error'] : ['error'],
+    });
   }
 
   async connect() {

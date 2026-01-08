@@ -34,6 +34,9 @@ import noteRoutes from './routes/notes.routes.js';
 const app = express();
 const server = createServer(app);
 
+// Trust proxy for accurate IP detection behind reverse proxies (like Render)
+app.set('trust proxy', 1);
+
 /**
  * Initialize Socket.IO with CORS configuration
  * SECURITY: Restrict origins to prevent unauthorized WebSocket connections
@@ -120,7 +123,6 @@ const limiter = rateLimit({
   skip: (req) => req.path === '/health',
 });
 app.use('/api/', limiter);
-
 // 5. Stricter rate limiting for authentication endpoints
 // REASON: Auth endpoints are primary targets for brute force attacks
 const authLimiter = rateLimit({
@@ -176,10 +178,10 @@ app.use('/uploads', express.static('uploads', {
  * Health check endpoint
  * REASON: For load balancers and monitoring systems
  */
-app.get('/health', (req, res) => {
+app.get('/', (req, res) => {
   res.status(200).json({
     success: true,
-    message: 'Server is running',
+    message: 'Server is running bobby bhai , kopal bhai and vinay bhai . for more info visit have some old monk',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development'
   });
