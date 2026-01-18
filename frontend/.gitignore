@@ -9,3 +9,5 @@
 .env.development
 .env.development.local
 .env.test
+
+node_modules/

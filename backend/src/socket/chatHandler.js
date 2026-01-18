@@ -5,13 +5,49 @@ export const chatHandler = (socket, io) => {
   // Send chat message
   socket.on('send-message', async (data) => {
     try {
-      const { message, classId } = data;
-      
-      // Verify user has access to this class
-      const hasAccess = await verifyClassAccess(socket.userId, socket.user.role, classId);
-      
+      const { message, type = 'BATCH', classId, recipientId } = data;
+
+      let room;
+      let hasAccess = false;
+
+      // Validation and Room determination based on type
+      switch (type) {
+        case 'BATCH':
+          if (!classId) return socket.emit('message-error', { error: 'Class ID is required for batch chat' });
+          hasAccess = await verifyClassAccess(socket.userId, socket.user.role, classId);
+          room = `class:${classId}`;
+          break;
+
+        case 'FACULTY_LOUNGE':
+          if (socket.user.role !== 'TEACHER' && socket.user.role !== 'ADMIN') {
+            return socket.emit('message-error', { error: 'Only faculty can access the lounge' });
+          }
+          hasAccess = true;
+          room = 'faculty_lounge';
+          break;
+
+        case 'GLOBAL':
+          if (socket.user.role !== 'ADMIN') {
+            return socket.emit('message-error', { error: 'Only admins can send global announcements' });
+          }
+          hasAccess = true;
+          room = 'global';
+          break;
+
+        case 'PRIVATE':
+          if (!recipientId) return socket.emit('message-error', { error: 'Recipient ID is required for private chat' });
+          hasAccess = true; // Simple implementation: everyone can DM for now
+          // Private room is always the sorted combination of both user IDs
+          const participants = [socket.userId, recipientId].sort();
+          room = `private:${participants[0]}:${participants[1]}`;
+          break;
+
+        default:
+          return socket.emit('message-error', { error: 'Invalid chat type' });
+      }
+
       if (!hasAccess) {
-        socket.emit('message-error', { error: 'Access denied to this class' });
+        socket.emit('message-error', { error: 'Access denied' });
         return;
       }
 
@@ -20,7 +56,9 @@ export const chatHandler = (socket, io) => {
         data: {
           message,
           userId: socket.userId,
-          classId
+          type,
+          classId: type === 'BATCH' ? classId : null,
+          recipientId: type === 'PRIVATE' ? recipientId : null
         },
         include: {
           user: {
@@ -34,16 +72,22 @@ export const chatHandler = (socket, io) => {
         }
       });
 
-      // Send message to all users in the class
-      io.to(`class:${classId}`).emit('new-message', {
-        id: chatMessage.id,
-        message: chatMessage.message,
-        createdAt: chatMessage.createdAt,
-        user: chatMessage.user,
-        classId
-      });
+      // Send message to the appropriate room
+      if (type === 'GLOBAL') {
+        io.emit('new-message', {
+          ...chatMessage,
+          roomType: 'GLOBAL'
+        });
+      } else {
+        io.to(room).emit('new-message', {
+          ...chatMessage,
+          roomType: type,
+          classId,
+          recipientId
+        });
+      }
 
-      logger.info(`Chat message sent by ${socket.user.name} in class ${classId}`);
+      logger.info(`Chat message (${type}) sent by ${socket.user.name}`);
     } catch (error) {
       logger.error('Error sending chat message:', error);
       socket.emit('message-error', { error: 'Failed to send message' });
@@ -53,20 +97,48 @@ export const chatHandler = (socket, io) => {
   // Get chat history
   socket.on('get-chat-history', async (data) => {
     try {
-      const { classId, page = 1, limit = 50 } = data;
-      
-      // Verify user has access to this class
-      const hasAccess = await verifyClassAccess(socket.userId, socket.user.role, classId);
-      
+      const { type = 'BATCH', classId, recipientId, page = 1, limit = 50 } = data;
+
+      let where = { type };
+      let hasAccess = false;
+
+      switch (type) {
+        case 'BATCH':
+          if (!classId) return socket.emit('chat-history-error', { error: 'Class ID is required' });
+          hasAccess = await verifyClassAccess(socket.userId, socket.user.role, classId);
+          where.classId = classId;
+          break;
+
+        case 'FACULTY_LOUNGE':
+          if (socket.user.role !== 'TEACHER' && socket.user.role !== 'ADMIN') {
+            return socket.emit('chat-history-error', { error: 'Access denied' });
+          }
+          hasAccess = true;
+          break;
+
+        case 'GLOBAL':
+          hasAccess = true;
+          break;
+
+        case 'PRIVATE':
+          if (!recipientId) return socket.emit('chat-history-error', { error: 'Recipient ID is required' });
+          hasAccess = true;
+          where.OR = [
+            { userId: socket.userId, recipientId: recipientId },
+            { userId: recipientId, recipientId: socket.userId }
+          ];
+          break;
+      }
+
       if (!hasAccess) {
-        socket.emit('chat-history-error', { error: 'Access denied to this class' });
+        socket.emit('chat-history-error', { error: 'Access denied' });
         return;
       }
 
       const skip = (page - 1) * limit;
 
       const messages = await prisma.chatMessage.findMany({
-        where: { classId },
+        where,
         include: {
           user: {
             select: {
@@ -83,8 +155,10 @@ export const chatHandler = (socket, io) => {
       });
 
       socket.emit('chat-history', {
+        type,
         classId,
-        messages: messages.reverse(), // Reverse to get chronological order
+        recipientId,
+        messages: messages.reverse(),
         hasMore: messages.length === limit
       });
     } catch (error) {
@@ -97,7 +171,7 @@ export const chatHandler = (socket, io) => {
   socket.on('delete-message', async (data) => {
     try {
       const { messageId, classId } = data;
-      
+
       // Get message details
       const message = await prisma.chatMessage.findUnique({
         where: { id: messageId },
@@ -116,9 +190,9 @@ export const chatHandler = (socket, io) => {
       }
 
       // Check if user can delete this message
-      const canDelete = message.userId === socket.userId || 
-                       message.class.teacherId === socket.userId || 
-                       socket.user.role === 'ADMIN';
+      const canDelete = message.userId === socket.userId ||
+        message.class.teacherId === socket.userId ||
+        socket.user.role === 'ADMIN';
 
       if (!canDelete) {
         socket.emit('delete-message-error', { error: 'Not authorized to delete this message' });
@@ -171,7 +245,7 @@ const verifyClassAccess = async (userId, userRole, classId) => {
     } else if (userRole === 'ADMIN') {
       return true;
     }
-    
+
     return false;
   } catch (error) {
     logger.error('Error verifying class access:', error);
