@@ -13,6 +13,7 @@ import { NotesViewer } from "../components/student/notes-viewer"
 import { QuizCreator } from "../components/teacher/quiz-creator"
 import { QuizInterface } from "../components/student/quiz-interface"
 import { QuizManagement } from "../components/admin/quiz-management"
+import { ChatContainer } from "../components/chat/ChatContainer"
 
 function AppContent() {
   const { user, isLoading } = useAuth()
@@ -186,14 +187,7 @@ function AppContent() {
             </ContentWrapper>
           )
         case "chat":
-          return (
-            <ContentWrapper>
-              <div className="text-center py-12">
-                <h1 className="text-2xl font-bold mb-4">Chat</h1>
-                <p className="text-gray-600 dark:text-gray-400">Chat functionality coming soon...</p>
-              </div>
-            </ContentWrapper>
-          )
+          return <ChatContainer />
         case "quizzes":
           return <QuizCreator />
         default:
@@ -224,14 +218,7 @@ function AppContent() {
             </ContentWrapper>
           )
         case "chat":
-          return (
-            <ContentWrapper>
-              <div className="text-center py-12">
-                <h1 className="text-2xl font-bold mb-4">Chat</h1>
-                <p className="text-gray-600 dark:text-gray-400">Chat functionality coming soon...</p>
-              </div>
-            </ContentWrapper>
-          )
+          return <ChatContainer />
         case "notifications":
           return (
             <ContentWrapper>

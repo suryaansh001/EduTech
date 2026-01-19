@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { getSocket } from '@/lib/socket';
+import { classesApi } from '@/lib/api';
 import { ChatSidebar } from './ChatSidebar';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
@@ -62,6 +63,31 @@ export function ChatContainer() {
         };
     }, [token]);
 
+    // Fetch classes for BATCH tab
+    useEffect(() => {
+        const fetchClasses = async () => {
+            try {
+                let response;
+                if (user.role === 'STUDENT') {
+                    response = await classesApi.getMyEnrollments();
+                } else {
+                    response = await classesApi.getAll();
+                }
+                if (response.success) {
+                    setRooms(response.data);
+                }
+            } catch (error) {
+                console.error('Failed to fetch classes:', error);
+            }
+        };
+
+        if (activeTab === 'BATCH') {
+            fetchClasses();
+        } else {
+            setRooms([]);
+        }
+    }, [activeTab, user.role]);
+
     // Handle Tab Change & Join Room
     useEffect(() => {
         if (!socketRef.current) return;
@@ -69,6 +95,7 @@ export function ChatContainer() {
         // Reset state for new tab
         setMessages([]);
         setTypingUsers([]);
+        setActiveRoom(null);
 
         // Logic to determine which room to join automatically (placeholder logic)
         // In a real app, this would fetch the user's classes or recent chats
@@ -80,6 +107,22 @@ export function ChatContainer() {
         }
         // More complex logic for BATCH and PRIVATE would go here
     }, [activeTab]);
+
+    const handleRoomSelect = (room) => {
+        setActiveRoom(room);
+        setMessages([]);
+        setTypingUsers([]);
+
+        if (!socketRef.current) return;
+
+        if (activeTab === 'BATCH') {
+            // Join class room
+            socketRef.current.emit('join-class', room.id);
+            // Get chat history for this class
+            socketRef.current.emit('get-chat-history', { type: 'BATCH', classId: room.id });
+        }
+        // Add logic for PRIVATE if needed
+    };
 
     const handleSendMessage = (text) => {
         const payload = {
@@ -119,6 +162,7 @@ export function ChatContainer() {
                 onTabChange={setActiveTab}
                 rooms={rooms}
                 userRole={user?.role}
+                onRoomSelect={handleRoomSelect}
             />
 
             <Card className="flex-1 flex flex-col overflow-hidden border-none shadow-2xl bg-card/60 backdrop-blur-md rounded-3xl ring-1 ring-white/10">
