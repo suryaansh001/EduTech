@@ -3,38 +3,7 @@ import { prisma } from '../config/database.js';
 import { logger } from '../utils/logger.utils.js';
 import { chatHandler } from './chatHandler.js';
 import { quizHandler } from './quizHandler.js';
-
-// Helper function to verify class access
-const verifyClassAccess = async (userId, userRole, classId) => {
-  try {
-    const classData = await prisma.class.findUnique({
-      where: { id: classId },
-      select: {
-        teacherId: true,
-        enrollments: {
-          where: { studentId: userId },
-          select: { id: true }
-        }
-      }
-    });
-
-    if (!classData) return false;
-
-    // Admin has access to all classes
-    if (userRole === 'ADMIN') return true;
-
-    // Teacher has access if they teach the class
-    if (userRole === 'TEACHER' && classData.teacherId === userId) return true;
-
-    // Student has access if enrolled
-    if (userRole === 'STUDENT' && classData.enrollments.length > 0) return true;
-
-    return false;
-  } catch (error) {
-    logger.error('Error verifying class access:', error);
-    return false;
-  }
-};
+import { verifyClassAccess } from './socketUtils.js';
 
 export const initializeSocket = (io) => {
   // Authentication middleware for socket connections
@@ -257,35 +226,4 @@ export const initializeSocket = (io) => {
   });
 
   logger.info('Socket.IO initialized successfully');
-};
-
-// Helper function to verify class access
-const verifyClassAccess = async (userId, userRole, classId) => {
-  try {
-    if (userRole === 'TEACHER') {
-      const classData = await prisma.class.findFirst({
-        where: {
-          id: classId,
-          teacherId: userId
-        }
-      });
-      return !!classData;
-    } else if (userRole === 'STUDENT') {
-      const enrollment = await prisma.enrollment.findFirst({
-        where: {
-          userId,
-          classId,
-          status: 'ACTIVE'
-        }
-      });
-      return !!enrollment;
-    } else if (userRole === 'ADMIN') {
-      return true;
-    }
-
-    return false;
-  } catch (error) {
-    logger.error('Error verifying class access:', error);
-    return false;
-  }
 };
