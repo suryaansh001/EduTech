@@ -325,13 +325,8 @@ export const classService = {
             teacher: {
               select: {
                 id: true,
-                user: {
-                  select: {
-                    firstName: true,
-                    lastName: true,
-                    email: true
-                  }
-                }
+                name: true,
+                email: true
               }
             },
             schedules: {

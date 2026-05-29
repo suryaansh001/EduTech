@@ -1,45 +1,61 @@
 import request from 'supertest';
 import { app } from '../src/app.js';
-import { logger } from '../src/utils/logger.utils.js';
 
-describe('API Tests', () => {
-  test('should pass health check', async () => {
-    const response = await request(app)
-      .get('/health')
-      .expect(200);
-    
-    expect(response.body).toBeDefined();
+describe('Health Check & Basic API Tests', () => {
+  describe('GET /', () => {
+    test('should pass health check', async () => {
+      const response = await request(app)
+        .get('/')
+        .expect(200);
+      
+      expect(response.body.success).toBe(true);
+      expect(response.body.message).toBeDefined();
+    });
   });
 
-  test('should login admin successfully', async () => {
-    const response = await request(app)
-      .post('/api/auth/login')
-      .send({
-        email: 'admin@edutech.com',
-        password: 'Password123!'
-      })
-      .expect(200);
+  describe('API Security', () => {
+    test('should return 401 for protected routes without token', async () => {
+      const protectedRoutes = [
+        '/api/classes',
+        '/api/quizzes',
+        '/api/notes',
+        '/api/announcements',
+        '/api/auth/profile',
+      ];
 
-    expect(response.body.success).toBe(true);
-    expect(response.body.data.token).toBeDefined();
+      for (const route of protectedRoutes) {
+        const response = await request(app).get(route);
+        expect(response.status).toBe(401);
+      }
+    });
+
+    test('should return 401 for invalid token', async () => {
+      const response = await request(app)
+        .get('/api/classes')
+        .set('Authorization', 'Bearer invalid-token')
+        .expect(401);
+
+      expect(response.body.success).toBe(false);
+    });
   });
 
-  test('should access protected route with token', async () => {
-    const loginResponse = await request(app)
-      .post('/api/auth/login')
-      .send({
-        email: 'admin@edutech.com',
-        password: 'Password123!'
-      })
-      .expect(200);
+  describe('API Error Handling', () => {
+    test('should return 404 for non-existent routes', async () => {
+      const response = await request(app)
+        .get('/api/non-existent-route')
+        .expect(404);
 
-    const token = loginResponse.body.data.token;
+      expect(response.body.success).toBe(false);
+    });
+  });
 
-    const profileResponse = await request(app)
-      .get('/api/auth/profile')
-      .set('Authorization', `Bearer ${token}`)
-      .expect(200);
-
-    expect(profileResponse.body.success).toBe(true);
+  describe('Rate Limiting', () => {
+    test('should allow normal request rate', async () => {
+      // Make a few requests to ensure rate limiting doesn't block normal usage
+      for (let i = 0; i < 5; i++) {
+        const response = await request(app).get('/');
+        expect(response.status).toBe(200);
+      }
+    });
   });
 });

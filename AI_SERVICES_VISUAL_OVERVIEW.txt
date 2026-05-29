@@ -1,0 +1,380 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║           AI SERVICES ARCHITECTURE - VISUAL OVERVIEW                       ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+
+ARCHITECTURE FLOW:
+═════════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          CONTROLLER / ROUTE                             │
+│                                                                         │
+│  async function generateQuiz(req, res) {                              │
+│    const service = createAIService('quiz', req.user.tier);           │
+│    const result = await service.generateQuestions(content);          │
+│    res.json(result);                                                 │
+│  }                                                                     │
+└────────────────┬────────────────────────────────────────────────────────┘
+                 │ No tier checks needed - factory handles it!
+                 ▼
+        ┌────────────────────┐
+        │  Service Factory   │
+        │  (createAIService) │
+        └────────┬───────────┘
+                 │
+      ┌──────────┼──────────┐
+      │          │          │
+      ▼          ▼          ▼
+   (free)   (premium)  (enterprise)
+      │          │          │
+      │ Config   │ Config   │ Config
+      ▼ Feature  ▼ Feature  ▼ Feature
+      │ Check    │ Check    │ Check
+      │          │          │
+      ▼          ▼          ▼
+  ┌────────┐ ┌──────────────────┐ ┌──────────────────┐
+  │ NoOp   │ │ Real Service     │ │ Real Service     │
+  │Service │ │ (e.g. Quiz Gen)  │ │ (e.g. Quiz Gen)  │
+  └────────┘ └──────────────────┘ └──────────────────┘
+      │          │                      │
+      │        ┌─┴─┐                    │
+      │        │   ├─────────────────┐  │
+      │        ▼   ▼                 ▼  ▼
+      │    External                   Cached
+      │    Services:                  Instance
+      │    - LLM APIs                 (Tier-based)
+      │    - Vector DB
+      │    - etc.
+      │
+      └──────────────┬──────────────┘
+                     │
+                     ▼
+           Response Objects:
+           ┌──────────────────┐
+           │ {                │
+           │   success: false,│    (NoOp)
+           │   message: "..." │
+           │ }               │
+           └──────────────────┘
+                     or
+           ┌──────────────────┐
+           │ {                │
+           │   success: true, │    (Real Service)
+           │   data: [...]    │
+           │ }               │
+           └──────────────────┘
+
+
+SERVICE CLASS HIERARCHY:
+═════════════════════════════════════════════════════════════════════════════
+
+            ┌──────────────────────────┐
+            │   BaseAIService          │ (Abstract)
+            │  ─────────────────────   │
+            │  - initialize()          │
+            │  - isAvailable()         │
+            │  - getStatus()           │
+            │  - shutdown()            │
+            │  - _log()                │
+            │  - _markHealthy()        │
+            │  - _markUnhealthy()      │
+            └──────┬───────────────────┘
+                   │
+       ┌───────────┴───────────┬──────────────────────┐
+       │                       │                      │
+       ▼                       ▼                      ▼
+  ┌──────────────┐      ┌─────────────────┐    ┌─────────────────┐
+  │ NoOpAIService│      │ QuizGenService  │    │ RAGService      │
+  │              │      │                 │    │                 │
+  │ -All methods │      │ Impl:           │    │ Impl:           │
+  │  return      │      │ - initialize()  │    │ - initialize()  │
+  │  {success:   │      │ - isAvailable() │    │ - isAvailable() │
+  │   false, ...}│      │ - getStatus()   │    │ - getStatus()   │
+  └──────────────┘      │ - generateQ()   │    │ - indexDoc()    │
+                        │ - generateAnsK()│    │ - query()       │
+                        │ - evaluateResp()│    │ - generateResp()│
+                        └─────────────────┘    └─────────────────┘
+                             ▲                        ▲
+                             │                        │
+                             └────────────┬───────────┘
+                                        │
+                         registerService('quiz', QuizGenService)
+                         registerService('rag', RAGService)
+
+
+TIER-BASED BEHAVIOR FLOW:
+═════════════════════════════════════════════════════════════════════════════
+
+USER MAKES REQUEST
+    │
+    ├─ Authenticate & get user.tier
+    │
+    ├─ Call controller
+    │
+    ├─ createAIService('quiz', user.tier)
+    │
+    └─ TIER CHECK:
+       │
+       ├─ Is tier 'free'?
+       │  └─ YES → Return NoOpAIService
+       │
+       ├─ Is tier 'premium'?
+       │  ├─ Is 'quiz' feature enabled?
+       │  │  ├─ YES → Return cached QuizGenService
+       │  │  └─ NO  → Return NoOpAIService
+       │  └─ Service not registered?
+       │     └─ Return NoOpAIService
+       │
+       └─ Is tier 'enterprise'?
+          └─ YES → Return cached real service
+
+
+FEATURE AVAILABILITY LOOKUP:
+═════════════════════════════════════════════════════════════════════════════
+
+TIER_FEATURES = {
+  free: {
+    quizGeneration: false,         ┐
+    documentAnalysis: false,       │ All disabled
+    ragService: false,             │ → NoOp service
+    contentGeneration: false,      │ returned
+    advancedChat: false            │
+  },                               ┘
+
+  premium: {
+    quizGeneration: true,          ┐
+    documentAnalysis: true,        │ All enabled
+    ragService: true,              │ → Real service
+    contentGeneration: true,       │ returned
+    advancedChat: true             │
+  },                               ┘
+
+  enterprise: {
+    quizGeneration: true,          ┐
+    documentAnalysis: true,        │ All enabled +
+    ragService: true,              │ extras
+    contentGeneration: true,       │ (custom models, etc)
+    advancedChat: true,            │
+    customModels: true,            │
+    dedicatedSupport: true         │
+  }                                ┘
+}
+
+
+SERVICE LIFECYCLE:
+═════════════════════════════════════════════════════════════════════════════
+
+APP STARTUP:
+  └─ registerService('quiz', QuizGenService)
+  └─ registerService('rag', RAGService)
+  └─ initializeServices(['quiz', 'rag'])
+     ├─ For each tier (premium, enterprise):
+     │  └─ For each service:
+     │     ├─ createAIService()
+     │     ├─ await service.initialize()
+     │     └─ Store in cache
+     └─ Return initialization results
+
+RUNTIME REQUEST:
+  └─ createAIService('quiz', userTier)
+     ├─ Check cache first
+     │  ├─ If found → Return cached instance
+     │  └─ If not found → Create new instance
+     ├─ Check tier features
+     │  ├─ If disabled → Return NoOp
+     │  └─ If enabled → Return real service
+     └─ Cache for next request
+
+APP SHUTDOWN:
+  └─ shutdownAllServices()
+     └─ For each cached service:
+        └─ await service.shutdown()
+
+
+RESPONSE FORMAT CONSISTENCY:
+═════════════════════════════════════════════════════════════════════════════
+
+Both real and no-op services return the same response structure:
+
+SUCCESSFUL OPERATION:
+  {
+    success: true,
+    data: {
+      /* operation-specific data */
+    },
+    message: "Optional message"
+  }
+
+FEATURE NOT AVAILABLE:
+  {
+    success: false,
+    message: "Quiz Generation is not available in your current tier. " +
+             "Upgrade to Premium to access this feature.",
+    data: null
+  }
+
+ERROR CONDITION:
+  {
+    success: false,
+    message: "Human-readable error message",
+    error: "Detailed error info",
+    data: null
+  }
+
+
+SERVICE INSTANTIATION EXAMPLE:
+═════════════════════════════════════════════════════════════════════════════
+
+// Scenario 1: Free tier user
+const service = createAIService('quiz', 'free', {
+  logger: myLogger
+});
+// → Returns: NoOpAIService
+
+await service.generateQuestions('content', 5, 'medium');
+// → Returns: {success: false, message: "Quiz Generation is not available..."}
+
+
+// Scenario 2: Premium tier user
+const service = createAIService('quiz', 'premium', {
+  logger: myLogger,
+  apiKey: process.env.OPENAI_API_KEY,
+  model: 'gpt-4'
+});
+// → Returns: QuizGenerationService (cached if already exists)
+
+await service.generateQuestions('content', 5, 'medium');
+// → Returns: {success: true, data: [question1, question2, ...]}
+
+
+// Scenario 3: Feature disabled (override)
+const service = createAIService('quiz', 'premium', {
+  featureOverrides: { quizGeneration: false }
+});
+// → Returns: NoOpAIService (even though premium)
+
+
+MIGRATION PATH FOR EXISTING SERVICES:
+═════════════════════════════════════════════════════════════════════════════
+
+OLD WAY (Direct import):
+  import { chatService } from './services/chat.service.js';
+  const message = await chatService.sendMessage(...);
+
+NEW WAY (With factory):
+  import { createAIService } from './services/ai/index.js';
+  const chatService = createAIService('chat', userTier);
+  const result = await chatService.sendMessage(...);
+
+MIGRATION OPTIONS:
+
+1. Wrap Existing Service:
+   class WrappedChatService extends BaseAIService {
+     async sendMessage(...) {
+       return this.originalService.sendMessage(...);
+     }
+   }
+
+2. Full Refactor:
+   class NewChatService extends BaseAIService {
+     // Full implementation
+   }
+
+3. Hybrid:
+   Some methods use factory, some use old pattern
+   (Gradual migration)
+
+
+CACHING STRATEGY:
+═════════════════════════════════════════════════════════════════════════════
+
+SERVICE_CACHE = {
+  free: {
+    'quiz': NoOpAIService instance,
+    'rag': NoOpAIService instance,
+    ...
+  },
+  premium: {
+    'quiz': QuizGenService instance (cached),
+    'rag': RAGService instance (cached),
+    ...
+  },
+  enterprise: {
+    'quiz': QuizGenService instance (cached),
+    'rag': RAGService instance (cached),
+    ...
+  }
+}
+
+Benefits:
+  ✓ Same instance reused for all users of same tier
+  ✓ No recreation overhead
+  ✓ Connections preserved
+  ✓ State maintained
+
+
+HEALTH CHECK FLOW:
+═════════════════════════════════════════════════════════════════════════════
+
+GET /api/health/services
+  │
+  ├─ getServicesStatus('premium')
+  │  └─ For each cached service:
+  │     ├─ service.getStatus()
+  │     └─ Collect results
+  │
+  └─ Return:
+     {
+       quiz: {
+         healthy: true,
+         initialized: true,
+         message: "Service ready",
+         lastChecked: "2024-05-29T16:00:00Z"
+       },
+       rag: {
+         healthy: false,
+         message: "Connection failed",
+         errors: [...]
+       },
+       ...
+     }
+
+
+KEY BENEFITS VISUALIZATION:
+═════════════════════════════════════════════════════════════════════════════
+
+WITHOUT FACTORY PATTERN:
+  Route 1:  if (tier === 'free') → return error
+           else if (tier === 'premium') → service.method()
+           else if (tier === 'enterprise') → service.method()
+
+  Route 2:  if (tier === 'free') → return error
+           else if (tier === 'premium') → service.method()
+           else if (tier === 'enterprise') → service.method()
+
+  Route N:  if (tier === 'free') → return error
+           else if (tier === 'premium') → service.method()
+           else if (tier === 'enterprise') → service.method()
+
+  Result: LOTS OF DUPLICATION ❌
+
+
+WITH FACTORY PATTERN:
+  Factory:  tier → NoOp OR Real service (centralized)
+
+  Route 1:  const service = createAIService(...);
+           service.method();
+
+  Route 2:  const service = createAIService(...);
+           service.method();
+
+  Route N:  const service = createAIService(...);
+           service.method();
+
+  Result: SINGLE CODE PATH ✓
+
+
+═════════════════════════════════════════════════════════════════════════════
+  The factory pattern eliminates code duplication and makes tier-based
+  feature access transparent to route handlers!
+═════════════════════════════════════════════════════════════════════════════

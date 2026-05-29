@@ -20,9 +20,9 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     // Mock authentication - replace with real API call
     const mockUsers = [
-      { id: "1", name: "Admin User", email: "admin@school.com", role: "admin" },
-      { id: "2", name: "John Teacher", email: "teacher@school.com", role: "teacher", batchId: "batch1" },
-      { id: "3", name: "Jane Student", email: "student@school.com", role: "student", batchId: "batch1" },
+      { id: "1", name: "Admin User", email: "admin@school.com", role: "admin", tier: "enterprise" },
+      { id: "2", name: "John Teacher", email: "teacher@school.com", role: "teacher", batchId: "batch1", tier: "premium" },
+      { id: "3", name: "Jane Student", email: "student@school.com", role: "student", batchId: "batch1", tier: "free" },
     ]
 
     const foundUser = mockUsers.find((u) => u.email === email)

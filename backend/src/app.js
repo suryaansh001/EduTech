@@ -30,6 +30,8 @@ import chatRoutes from './routes/chat.routes.js';
 import analyticsRoutes from './routes/analytics.routes.js';
 import announcementRoutes from './routes/announcements.routes.js';
 import noteRoutes from './routes/notes.routes.js';
+import mcpRoutes from './routes/mcp.routes.js';
+import aiChatRoutes from './routes/ai-chat.routes.js';
 
 const app = express();
 const server = createServer(app);
@@ -201,6 +203,8 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/notes', noteRoutes);
+app.use('/api/mcp', mcpRoutes);
+app.use('/api/ai-chat', aiChatRoutes);
 
 /**
  * 404 handler - Catch all unmatched routes

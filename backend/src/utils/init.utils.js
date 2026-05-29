@@ -20,6 +20,7 @@ export const initializeApp = async () => {
     // - Seed default admin user if not exists
     // - Initialize cache
     // - Setup scheduled jobs
+    // - Add AnalyticsScheduler when ai-analytics.service.js is implemented
     
     logger.info('✅ Application initialized successfully');
 
