@@ -1,11 +1,17 @@
 import { PrismaClient } from '@prisma/client';
 import { hashPassword } from '../src/utils/bcrypt.utils.js';
 import { logger } from '../src/utils/logger.utils.js';
+import { FEATURES, SUBSCRIPTION_TIERS, TIER_FEATURES } from '../src/config/features.config.js';
 
 const prisma = new PrismaClient();
 
 /**
  * Database Seed Script
+ * 
+ * Seeds the database with:
+ * 1. Default admin, teacher, and student users with appropriate tiers
+ * 2. FeatureAccess table with all tier + feature combinations
+ * 3. Sample classes, quizzes, notes for demonstration
  * 
  * SECURITY NOTES:
  * 1. Passwords follow security policy (min 8 chars, uppercase, lowercase, number, special char)
@@ -17,9 +23,56 @@ const prisma = new PrismaClient();
 // SECURITY: Use strong default passwords meeting policy requirements
 const DEFAULT_PASSWORD = 'Password123!';
 
+/**
+ * Seed FeatureAccess table with all tier + feature combinations
+ * This defines what features are available for each subscription tier
+ */
+async function seedFeatureAccess() {
+  try {
+    logger.info('🔐 Seeding feature access configuration...');
+    
+    for (const tier of Object.values(SUBSCRIPTION_TIERS)) {
+      const tierFeatures = TIER_FEATURES[tier];
+      
+      for (const feature of Object.values(FEATURES)) {
+        const enabled = tierFeatures[feature] || false;
+        
+        // Check if this tier+feature combination already exists
+        const existing = await prisma.featureAccess.findUnique({
+          where: {
+            tier_featureName: {
+              tier,
+              featureName: feature
+            }
+          }
+        });
+
+        if (!existing) {
+          await prisma.featureAccess.create({
+            data: {
+              tier,
+              featureName: feature,
+              enabled,
+              description: `${feature} for ${tier} tier`
+            }
+          });
+        }
+      }
+    }
+    
+    logger.info('✅ Feature access configuration seeded successfully');
+  } catch (error) {
+    logger.error('❌ Error seeding feature access:', error);
+    throw error;
+  }
+}
+
 async function main() {
   try {
-    // Create default admin user
+    // First, seed feature access configuration
+    await seedFeatureAccess();
+
+    // Create default admin user (ENTERPRISE tier - full access)
     const adminExists = await prisma.user.findUnique({
       where: { email: 'admin@edutech.com' }
     });
@@ -36,18 +89,20 @@ async function main() {
           role: 'ADMIN',
           phone: '+1234567890',
           bio: 'System Administrator',
+          subscriptionTier: 'ENTERPRISE',
+          tierUpdatedAt: new Date(),
           // SECURITY: In production, set to true to force password change
           isFirstLogin: false,
           isActive: true
         }
       });
 
-      logger.info('✅ Default admin user created:', admin.email);
+      logger.info('✅ Default admin user created (ENTERPRISE tier):', admin.email);
     } else {
       logger.info('ℹ️ Default admin user already exists');
     }
 
-    // Create sample teacher
+    // Create sample teacher (PREMIUM tier - full AI features)
     const teacherExists = await prisma.user.findUnique({
       where: { email: 'teacher@edutech.com' }
     });
@@ -64,6 +119,8 @@ async function main() {
             role: 'TEACHER',
             phone: '+1234567891',
             bio: 'Mathematics Teacher with 5 years of experience',
+            subscriptionTier: 'PREMIUM',
+            tierUpdatedAt: new Date(),
             isFirstLogin: false,
             isActive: true
           }
@@ -81,10 +138,10 @@ async function main() {
         return newTeacher;
       });
 
-      logger.info('✅ Sample teacher user created:', teacher.email);
+      logger.info('✅ Sample teacher user created (PREMIUM tier):', teacher.email);
     }
 
-    // Create sample student
+    // Create sample student (FREE tier - basic access)
     const studentExists = await prisma.user.findUnique({
       where: { email: 'student@edutech.com' }
     });
@@ -101,6 +158,8 @@ async function main() {
             role: 'STUDENT',
             phone: '+1234567892',
             bio: 'High School Student passionate about learning',
+            subscriptionTier: 'FREE',
+            tierUpdatedAt: new Date(),
             isFirstLogin: false,
             isActive: true
           }
@@ -118,7 +177,46 @@ async function main() {
         return newStudent;
       });
 
-      logger.info('✅ Sample student user created:', student.email);
+      logger.info('✅ Sample student user created (FREE tier):', student.email);
+    }
+
+    // Create another student for PREMIUM testing
+    const premiumStudentExists = await prisma.user.findUnique({
+      where: { email: 'premium-student@edutech.com' }
+    });
+
+    if (!premiumStudentExists) {
+      const hashedPassword = await hashPassword(DEFAULT_PASSWORD);
+      
+      const premiumStudent = await prisma.$transaction(async (prisma) => {
+        const newStudent = await prisma.user.create({
+          data: {
+            name: 'Alex Premium',
+            email: 'premium-student@edutech.com',
+            password: hashedPassword,
+            role: 'STUDENT',
+            phone: '+1234567893',
+            bio: 'Premium subscriber with full feature access',
+            subscriptionTier: 'PREMIUM',
+            tierUpdatedAt: new Date(),
+            isFirstLogin: false,
+            isActive: true
+          }
+        });
+
+        await prisma.studentProfile.create({
+          data: {
+            userId: newStudent.id,
+            grade: '11th Grade',
+            interests: ['AI', 'Computer Science', 'Advanced Mathematics'],
+            learningGoals: 'Master programming and AI concepts'
+          }
+        });
+
+        return newStudent;
+      });
+
+      logger.info('✅ Premium student user created (PREMIUM tier):', premiumStudent.email);
     }
 
     // Create a sample class for demonstration
@@ -393,25 +491,48 @@ For every action, there is an equal and opposite reaction.
     logger.info('🎉 Database seeded successfully!');
     logger.info('');
     logger.info('═══════════════════════════════════════════════════════');
-    logger.info('📝 TEST MODE - Demo Credentials for UI Testing:');
+    logger.info('📝 TEST MODE - Demo Credentials & Subscription Tiers:');
     logger.info('═══════════════════════════════════════════════════════');
     logger.info('');
-    logger.info('👨‍💼 ADMIN Account:');
+    logger.info('👨‍💼 ADMIN Account (ENTERPRISE Tier - Full Access):');
     logger.info('   Email: admin@edutech.com');
     logger.info('   Password: Password123!');
-    logger.info('   Access: Full system administration, user management');
+    logger.info('   Tier: ENTERPRISE');
+    logger.info('   Access: Full system admin + all AI features');
     logger.info('');
-    logger.info('👨‍🏫 TEACHER Account:');
+    logger.info('👨‍🏫 TEACHER Account (PREMIUM Tier - All AI Features):');
     logger.info('   Email: teacher@edutech.com');
     logger.info('   Password: Password123!');
-    logger.info('   Access: Create classes, quizzes, manage students');
+    logger.info('   Tier: PREMIUM');
+    logger.info('   Access: Create classes, AI chat, quiz generation, document analysis');
     logger.info('   Demo Data: 3 classes (Math, Science, English)');
     logger.info('');
-    logger.info('👨‍🎓 STUDENT Account:');
+    logger.info('👨‍🎓 STUDENT Account (FREE Tier - Basic Access):');
     logger.info('   Email: student@edutech.com');
     logger.info('   Password: Password123!');
-    logger.info('   Access: View classes, take quizzes, view notes');
+    logger.info('   Tier: FREE');
+    logger.info('   Access: View classes, take quizzes, view notes (NO AI features)');
     logger.info('   Demo Data: Enrolled in all 3 classes with sample content');
+    logger.info('');
+    logger.info('👨‍🎓 PREMIUM STUDENT Account (PREMIUM Tier - All AI Features):');
+    logger.info('   Email: premium-student@edutech.com');
+    logger.info('   Password: Password123!');
+    logger.info('   Tier: PREMIUM');
+    logger.info('   Access: All platform features including AI capabilities');
+    logger.info('   Demo Data: Test account for premium feature verification');
+    logger.info('');
+    logger.info('═══════════════════════════════════════════════════════');
+    logger.info('🔐 Subscription Tiers Configured:');
+    logger.info('═══════════════════════════════════════════════════════');
+    logger.info('FREE:       Basic platform access, no AI features');
+    logger.info('PREMIUM:    All AI features (chat, documents, quizzes)');
+    logger.info('ENTERPRISE: Full features + custom configurations');
+    logger.info('');
+    logger.info('💡 Feature Access configured in FeatureAccess table:');
+    Object.entries(TIER_FEATURES).forEach(([tier, features]) => {
+      const enabledCount = Object.values(features).filter(v => v).length;
+      logger.info(`   ${tier}: ${enabledCount} features enabled`);
+    });
     logger.info('');
     logger.info('═══════════════════════════════════════════════════════');
 

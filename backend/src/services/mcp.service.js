@@ -2,6 +2,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { spawn } from 'child_process';
 import { logger } from '../utils/logger.utils.js';
+import { isFeatureEnabledForTier, FEATURES } from '../config/features.config.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { PrismaClient } from '@prisma/client';
@@ -32,20 +33,46 @@ class MCPService {
       },
     };
     this.initialized = false;
+    this.enabled = isFeatureEnabledForTier(FEATURES.MCP_ENABLED, 'PREMIUM');
   }
 
   async initialize() {
     if (this.initialized) return;
 
-    try {
-      for (const [key, server] of Object.entries(this.servers)) {
-        await this.connectToServer(key, server);
-      }
+    // Check if MCP is disabled via feature flag
+    if (!this.enabled) {
+      logger.info('[MCP] Initialization skipped - MCP_ENABLED feature flag is disabled');
       this.initialized = true;
-      logger.info('MCP Service initialized successfully');
+      return;
+    }
+
+    try {
+      logger.info('[MCP] Starting initialization of MCP servers...');
+      let successCount = 0;
+      let failureCount = 0;
+
+      for (const [key, server] of Object.entries(this.servers)) {
+        try {
+          await this.connectToServer(key, server);
+          successCount++;
+        } catch (error) {
+          logger.warn(`[MCP] Failed to connect to ${key} server, continuing with other servers:`, error.message);
+          failureCount++;
+        }
+      }
+
+      this.initialized = true;
+      logger.info(`[MCP] Service initialized successfully (${successCount} servers connected, ${failureCount} failed)`);
+      
+      // Don't throw - we want graceful degradation
+      if (successCount === 0) {
+        logger.warn('[MCP] No MCP servers connected - service will return errors for all requests');
+      }
     } catch (error) {
-      logger.error('Failed to initialize MCP Service:', error);
-      throw error;
+      logger.error('[MCP] Unexpected error during initialization:', error);
+      // Mark as initialized to prevent retry loops, but set a flag that we're degraded
+      this.initialized = true;
+      this.degraded = true;
     }
   }
 
@@ -87,21 +114,67 @@ class MCPService {
         name: server.name,
       };
 
-      logger.info(`Connected to MCP server: ${key}`);
+      logger.info(`[MCP] Connected to server: ${key}`);
     } catch (error) {
-      logger.error(`Failed to connect to ${key} server:`, error);
+      logger.error(`[MCP] Failed to connect to ${key} server:`, error.message);
       throw error;
     }
   }
 
   async callTool(serverKey, toolName, args, userId = null) {
+    // Check if MCP is disabled
+    if (!this.enabled) {
+      logger.debug(`[MCP] Tool call blocked (MCP disabled): ${serverKey}.${toolName}`);
+      return {
+        success: false,
+        message: 'MCP service is not available in your current tier. Upgrade to Premium to access this feature.',
+        isError: true,
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            error: 'MCP_NOT_AVAILABLE',
+            message: 'MCP service is not available for your tier'
+          })
+        }]
+      };
+    }
+
     if (!this.initialized) {
       await this.initialize();
     }
 
+    // Handle degraded mode
+    if (this.degraded) {
+      logger.warn(`[MCP] Tool call attempted in degraded mode: ${serverKey}.${toolName}`);
+      return {
+        success: false,
+        message: 'MCP service is currently unavailable. Please try again later.',
+        isError: true,
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            error: 'MCP_SERVICE_UNAVAILABLE',
+            message: 'MCP service is currently unavailable'
+          })
+        }]
+      };
+    }
+
     const serverClient = this.clients[serverKey];
     if (!serverClient) {
-      throw new Error(`MCP server '${serverKey}' not found`);
+      logger.error(`[MCP] Server not found: ${serverKey}`);
+      return {
+        success: false,
+        message: `MCP server '${serverKey}' is not available`,
+        isError: true,
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            error: 'MCP_SERVER_NOT_FOUND',
+            message: `Server ${serverKey} not found`
+          })
+        }]
+      };
     }
 
     const startTime = Date.now();
@@ -146,7 +219,19 @@ class MCPService {
         error,
       });
 
-      throw err;
+      logger.error(`[MCP] Tool call failed: ${serverKey}.${toolName} - ${error}`);
+      return {
+        success: false,
+        message: `Tool call failed: ${error}`,
+        isError: true,
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            error: 'MCP_TOOL_CALL_FAILED',
+            message: error
+          })
+        }]
+      };
     }
   }
 
@@ -159,23 +244,40 @@ class MCPService {
   }
 
   async listTools(serverKey) {
+    if (!this.enabled) {
+      return [];
+    }
+
     if (!this.initialized) {
       await this.initialize();
     }
 
     const serverClient = this.clients[serverKey];
     if (!serverClient) {
-      throw new Error(`MCP server '${serverKey}' not found`);
+      return [];
     }
 
-    const tools = await serverClient.client.listTools();
-    return tools.tools;
+    try {
+      const tools = await serverClient.client.listTools();
+      return tools.tools;
+    } catch (error) {
+      logger.error(`[MCP] Failed to list tools for ${serverKey}:`, error.message);
+      return [];
+    }
   }
 
   async listAllTools() {
+    if (!this.enabled) {
+      return {};
+    }
+
     const allTools = {};
-    for (const key of Object.keys(this.clients)) {
-      allTools[key] = await this.listTools(key);
+    try {
+      for (const key of Object.keys(this.clients)) {
+        allTools[key] = await this.listTools(key);
+      }
+    } catch (error) {
+      logger.error('[MCP] Failed to list all tools:', error.message);
     }
     return allTools;
   }
@@ -246,18 +348,22 @@ class MCPService {
   }
 
   async disconnect() {
-    for (const [key, client] of Object.entries(this.clients)) {
-      try {
-        if (client.process) {
-          client.process.kill();
+    try {
+      for (const [key, client] of Object.entries(this.clients)) {
+        try {
+          if (client.process) {
+            client.process.kill();
+          }
+          logger.info(`[MCP] Disconnected from server: ${key}`);
+        } catch (error) {
+          logger.error(`[MCP] Error disconnecting from ${key}:`, error.message);
         }
-        logger.info(`Disconnected from MCP server: ${key}`);
-      } catch (error) {
-        logger.error(`Error disconnecting from ${key}:`, error);
       }
+      this.clients = {};
+      this.initialized = false;
+    } catch (error) {
+      logger.error('[MCP] Error during disconnect:', error.message);
     }
-    this.clients = {};
-    this.initialized = false;
   }
 }
 

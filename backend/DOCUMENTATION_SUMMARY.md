@@ -422,3 +422,359 @@ You can integrate this directly with your RAG chatbot to help teachers and stude
 **Target Audience**: Beginners (students and teachers)
 **Format**: Markdown with code examples
 **Total Lines**: ~10,000+ lines of detailed explanations
+
+---
+
+## 🎯 Subscription Tiers & Feature Management
+
+### Tier System Overview
+
+EduTech uses a three-tier subscription model with feature-based access control:
+
+**Three Subscription Tiers:**
+- **FREE**: Basic platform access, no AI features
+- **PREMIUM**: Full AI capabilities (chat, document analysis, quiz generation)
+- **ENTERPRISE**: All features with custom configurations and advanced support
+
+### Feature Access Configuration
+
+#### Features Defined
+Located in `/src/config/features.config.js`:
+
+1. **AI_CHAT_ENABLED** - Enable/disable AI chat capabilities
+2. **MCP_ENABLED** - Enable/disable Model Context Protocol features
+3. **PINECONE_ENABLED** - Enable/disable Pinecone vector search
+4. **QUIZ_GENERATION_ENABLED** - Enable/disable AI quiz generation
+5. **DOCUMENT_ANALYSIS_ENABLED** - Enable/disable document analysis
+
+#### Tier Feature Matrix
+
+| Feature | FREE | PREMIUM | ENTERPRISE |
+|---------|------|---------|------------|
+| AI Chat | ❌ | ✅ | ✅ |
+| MCP | ❌ | ✅ | ✅ |
+| Pinecone Search | ❌ | ✅ | ✅ |
+| Quiz Generation | ❌ | ✅ | ✅ |
+| Document Analysis | ❌ | ✅ | ✅ |
+
+### Database Schema
+
+#### User Model Fields
+```javascript
+// Subscription Tier Fields
+subscriptionTier    SubscriptionTier   @default(FREE)
+featuresEnabled     Json?              @db.JsonB  // Per-user cached features
+tierUpdatedAt       DateTime           @default(now())
+```
+
+#### FeatureAccess Model
+```javascript
+model FeatureAccess {
+  id          String               @id
+  tier        SubscriptionTier     // FREE, PREMIUM, ENTERPRISE
+  featureName String               // From FEATURES config
+  description String?              // Human-readable description
+  enabled     Boolean              @default(true)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  
+  @@unique([tier, featureName])
+  @@index([tier])
+  @@index([featureName])
+}
+```
+
+#### UserFeatureOverride Model
+```javascript
+model UserFeatureOverride {
+  id          String    @id
+  userId      String
+  featureName String
+  enabled     Boolean   // true: grant, false: revoke
+  expiresAt   DateTime? // Optional temporary overrides
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@unique([userId, featureName])
+  @@index([userId])
+  @@index([expiresAt])
+}
+```
+
+### How to Query Features
+
+#### Check if a User Has a Feature
+
+```javascript
+// Using the provided utility function
+import { isFeatureEnabledForTier } from '../config/features.config.js';
+
+// Check if PREMIUM user can use AI chat
+const hasAIChat = isFeatureEnabledForTier(
+  'AI_CHAT_ENABLED',
+  'PREMIUM'
+);
+// Returns: true
+
+// Check if FREE user can use quiz generation
+const canGenerateQuiz = isFeatureEnabledForTier(
+  'QUIZ_GENERATION_ENABLED',
+  'FREE'
+);
+// Returns: false
+```
+
+#### Get All Features for a Tier
+
+```javascript
+import { getEnabledFeaturesForTier } from '../config/features.config.js';
+
+// Get all features available for PREMIUM tier
+const premiumFeatures = getEnabledFeaturesForTier('PREMIUM');
+/* Returns:
+{
+  AI_CHAT_ENABLED: true,
+  MCP_ENABLED: true,
+  PINECONE_ENABLED: true,
+  QUIZ_GENERATION_ENABLED: true,
+  DOCUMENT_ANALYSIS_ENABLED: true
+}
+*/
+```
+
+#### Query FeatureAccess Table
+
+```javascript
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+// Get all features for PREMIUM tier from database
+const premiumFeatures = await prisma.featureAccess.findMany({
+  where: { 
+    tier: 'PREMIUM',
+    enabled: true
+  },
+  select: { featureName: true, description: true }
+});
+
+// Get a specific feature for all tiers
+const aiChatAcrossTiers = await prisma.featureAccess.findMany({
+  where: { featureName: 'AI_CHAT_ENABLED' },
+  orderBy: { tier: 'asc' }
+});
+```
+
+#### Check Individual User Feature Access
+
+```javascript
+// Check if user has feature access (considering overrides)
+async function userHasFeature(userId, featureName) {
+  // 1. Check for user-specific overrides (takes precedence)
+  const override = await prisma.userFeatureOverride.findUnique({
+    where: {
+      userId_featureName: { userId, featureName }
+    }
+  });
+  
+  if (override) {
+    // Check if override has expired
+    if (override.expiresAt && override.expiresAt < new Date()) {
+      return false; // Expired
+    }
+    return override.enabled;
+  }
+  
+  // 2. Fall back to tier-based access
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { subscriptionTier: true }
+  });
+  
+  const tierFeature = await prisma.featureAccess.findUnique({
+    where: {
+      tier_featureName: {
+        tier: user.subscriptionTier,
+        featureName: featureName
+      }
+    }
+  });
+  
+  return tierFeature?.enabled || false;
+}
+```
+
+### Seed Data
+
+#### Test Accounts Created
+
+```
+1. ADMIN (admin@edutech.com)
+   - Tier: ENTERPRISE
+   - Full system access + all features
+   - Password: Password123!
+
+2. TEACHER (teacher@edutech.com)
+   - Tier: PREMIUM
+   - All AI features enabled
+   - Password: Password123!
+
+3. STUDENT (student@edutech.com)
+   - Tier: FREE
+   - Basic access, no AI features
+   - Password: Password123!
+
+4. PREMIUM_STUDENT (premium-student@edutech.com)
+   - Tier: PREMIUM
+   - For testing premium features
+   - Password: Password123!
+```
+
+#### Seeded Feature Combinations
+- 5 features × 3 tiers = 15 feature access records
+- All combinations configured in database
+- Automatically synced with features.config.js
+
+### Environment Variable Overrides
+
+Features can be overridden via environment variables (take precedence over tier config):
+
+```bash
+# .env file
+AI_CHAT_ENABLED=true           # Force enable even for FREE tier
+MCP_ENABLED=true
+PINECONE_ENABLED=false         # Disable for all tiers
+QUIZ_GENERATION_ENABLED=true
+DOCUMENT_ANALYSIS_ENABLED=true
+```
+
+### Implementation Examples
+
+#### Middleware to Check Feature Access
+
+```javascript
+import { isFeatureEnabledForTier } from '../config/features.config.js';
+
+export const requireFeature = (featureName) => {
+  return async (req, res, next) => {
+    const user = req.user; // From auth middleware
+    
+    const hasAccess = isFeatureEnabledForTier(
+      featureName,
+      user.subscriptionTier
+    );
+    
+    if (!hasAccess) {
+      return res.status(403).json({
+        error: 'Feature not available for your subscription tier',
+        tier: user.subscriptionTier,
+        feature: featureName
+      });
+    }
+    
+    next();
+  };
+};
+```
+
+#### Middleware Application
+
+```javascript
+// Protect AI chat route
+router.post(
+  '/chat',
+  requireFeature('AI_CHAT_ENABLED'),
+  chatController.createMessage
+);
+
+// Protect quiz generation
+router.post(
+  '/quizzes/generate',
+  requireFeature('QUIZ_GENERATION_ENABLED'),
+  quizController.generateWithAI
+);
+
+// Protect document analysis
+router.post(
+  '/documents/analyze',
+  requireFeature('DOCUMENT_ANALYSIS_ENABLED'),
+  fileController.analyzeDocument
+);
+```
+
+### Updating User Tier
+
+```javascript
+// Upgrade a user from FREE to PREMIUM
+async function upgradeUserTier(userId, newTier) {
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      subscriptionTier: newTier,
+      tierUpdatedAt: new Date()
+    }
+  });
+  
+  logger.info(`User upgraded: ${user.email} → ${newTier}`);
+  return user;
+}
+```
+
+### Granting Temporary Feature Access
+
+```javascript
+// Grant temporary access to a user (expires in 7 days)
+async function grantTemporaryFeature(userId, featureName, daysValid = 7) {
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + daysValid);
+  
+  return await prisma.userFeatureOverride.upsert({
+    where: { userId_featureName: { userId, featureName } },
+    update: {
+      enabled: true,
+      expiresAt: expiresAt
+    },
+    create: {
+      userId,
+      featureName,
+      enabled: true,
+      expiresAt: expiresAt
+    }
+  });
+}
+```
+
+### Database Commands
+
+#### View All Seed Data
+```bash
+# Run Prisma Studio
+npx prisma studio
+
+# View Users table
+- Filter by subscriptionTier
+- Check tierUpdatedAt timestamp
+
+# View FeatureAccess table
+- See all tier+feature combinations
+- Check enabled status for each
+```
+
+#### Apply Migrations
+```bash
+# Generate Prisma Client
+npm run db:generate
+
+# Deploy pending migrations
+npx prisma migrate deploy
+
+# Run seed script
+npm run db:seed
+```
+
+### Configuration Files Location
+
+- **Features Config**: `/src/config/features.config.js`
+- **Prisma Schema**: `/prisma/schema.prisma`
+- **Seed Script**: `/prisma/seed.js`
+- **Migration**: `/prisma/migrations/20260529112651_add_subscription_tiers/`

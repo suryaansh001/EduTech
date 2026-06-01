@@ -22,11 +22,15 @@ model User {
   updatedAt             DateTime                @updatedAt
   lastLogin             DateTime?
   
-  // Subscription and feature access fields
+  // Subscription Tier Fields
+  // FREE:       Basic platform access, no AI features
+  // PREMIUM:    AI chat, document analysis, quiz generation
+  // ENTERPRISE: All features + custom configurations
   subscriptionTier      SubscriptionTier        @default(FREE)
-  featuresEnabled       Json?                   // Per-user feature overrides as JSON object
+  featuresEnabled       Json?                   @db.JsonB // Per-user feature overrides (cache of FeatureAccess for tier)
   tierUpdatedAt         DateTime                @default(now())
   
+  // Relations
   aiInsights            AIInsight[]
   analyticsProfile      AnalyticsProfile?
   announcements         Announcement[]
@@ -46,6 +50,7 @@ model User {
   @@index([lastLogin])
   @@index([role, isActive])
   @@index([subscriptionTier])
+  @@index([createdAt])
   @@map("users")
 }
 
@@ -476,25 +481,33 @@ model AnalyticsJob {
 }
 
 model FeatureAccess {
+  // Maps each subscription tier to available features
+  // Used to determine what features users can access based on their tier
+  // UserFeatureOverride can temporarily grant/revoke features per user
   id          String               @id @default(cuid())
-  tier        SubscriptionTier
-  featureName String
-  description String?
+  tier        SubscriptionTier     // Subscription tier (FREE, PREMIUM, ENTERPRISE)
+  featureName String               // Feature name from features.config.js
+  description String?              // Human-readable feature description
   enabled     Boolean              @default(true)
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
 
+  // Indexes for efficient feature lookup queries
   @@unique([tier, featureName])
   @@index([tier])
+  @@index([featureName])
   @@map("feature_access")
 }
 
 model UserFeatureOverride {
+  // Temporary feature grants/revocations for individual users
+  // Takes precedence over tier-based feature access
+  // Can be used for trials, beta testing, or special permissions
   id          String    @id @default(cuid())
   userId      String
-  featureName String
-  enabled     Boolean
-  expiresAt   DateTime?
+  featureName String    // Feature name from features.config.js
+  enabled     Boolean   // true: grant access, false: revoke access
+  expiresAt   DateTime? // Optional expiration date for temporary overrides
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -502,6 +515,7 @@ model UserFeatureOverride {
   @@unique([userId, featureName])
   @@index([userId])
   @@index([expiresAt])
+  @@index([featureName])
   @@map("user_feature_overrides")
 }
 
@@ -531,7 +545,7 @@ enum EnrollmentStatus {
 }
 
 enum SubscriptionTier {
-  FREE
-  PREMIUM
-  ENTERPRISE
+  FREE       // No AI features. Basic platform access only
+  PREMIUM    // Full AI capabilities: chat, document analysis, quiz generation
+  ENTERPRISE // All features with custom configurations and advanced support
 }

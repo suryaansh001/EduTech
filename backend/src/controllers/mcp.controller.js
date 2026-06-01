@@ -7,6 +7,9 @@ const prisma = new PrismaClient();
 /**
  * MCP Analytics Controller
  * Handles AI-powered analytics requests via MCP servers
+ * 
+ * All endpoints check user tier via middleware before reaching here.
+ * Service will return appropriate error responses if MCP is unavailable.
  */
 
 // Get student performance analytics
@@ -20,6 +23,11 @@ export const getStudentPerformance = async (req, res) => {
       includeDetails === 'true'
     );
 
+    // Check if service is unavailable (returns error response)
+    if (result.success === false) {
+      return res.status(403).json(result);
+    }
+
     const data = JSON.parse(result.content[0].text);
 
     res.json({
@@ -27,7 +35,7 @@ export const getStudentPerformance = async (req, res) => {
       data,
     });
   } catch (error) {
-    logger.error('Error getting student performance:', error);
+    logger.error('[MCP] Error getting student performance:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to get student performance',
@@ -48,6 +56,11 @@ export const getClassInsights = async (req, res) => {
       req.user.id
     );
 
+    // Check if service is unavailable
+    if (result.success === false) {
+      return res.status(403).json(result);
+    }
+
     const data = JSON.parse(result.content[0].text);
 
     res.json({
@@ -55,7 +68,7 @@ export const getClassInsights = async (req, res) => {
       data,
     });
   } catch (error) {
-    logger.error('Error getting class insights:', error);
+    logger.error('[MCP] Error getting class insights:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to get class insights',
@@ -70,6 +83,11 @@ export const predictStudentRisk = async (req, res) => {
     const { userId } = req.params;
 
     const result = await mcpService.predictStudentRisk(userId);
+    
+    if (result.success === false) {
+      return res.status(403).json(result);
+    }
+
     const data = JSON.parse(result.content[0].text);
 
     res.json({
@@ -77,7 +95,7 @@ export const predictStudentRisk = async (req, res) => {
       data,
     });
   } catch (error) {
-    logger.error('Error predicting student risk:', error);
+    logger.error('[MCP] Error predicting student risk:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to predict student risk',
@@ -93,6 +111,11 @@ export const generateRecommendations = async (req, res) => {
     const { focus } = req.body;
 
     const result = await mcpService.generateRecommendations(userId, focus || 'general');
+    
+    if (result.success === false) {
+      return res.status(403).json(result);
+    }
+
     const data = JSON.parse(result.content[0].text);
 
     res.json({
@@ -100,7 +123,7 @@ export const generateRecommendations = async (req, res) => {
       data,
     });
   } catch (error) {
-    logger.error('Error generating recommendations:', error);
+    logger.error('[MCP] Error generating recommendations:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to generate recommendations',
@@ -121,6 +144,11 @@ export const predictFinalGrade = async (req, res) => {
       currentWeek,
       totalWeeks
     );
+    
+    if (result.success === false) {
+      return res.status(403).json(result);
+    }
+
     const data = JSON.parse(result.content[0].text);
 
     res.json({
@@ -128,7 +156,7 @@ export const predictFinalGrade = async (req, res) => {
       data,
     });
   } catch (error) {
-    logger.error('Error predicting final grade:', error);
+    logger.error('[MCP] Error predicting final grade:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to predict final grade',
@@ -144,6 +172,11 @@ export const predictDropoutRisk = async (req, res) => {
     const { classId } = req.query;
 
     const result = await mcpService.predictDropoutRisk(userId, classId);
+    
+    if (result.success === false) {
+      return res.status(403).json(result);
+    }
+
     const data = JSON.parse(result.content[0].text);
 
     res.json({
@@ -151,7 +184,7 @@ export const predictDropoutRisk = async (req, res) => {
       data,
     });
   } catch (error) {
-    logger.error('Error predicting dropout risk:', error);
+    logger.error('[MCP] Error predicting dropout risk:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to predict dropout risk',
@@ -167,6 +200,11 @@ export const suggestStudyPlan = async (req, res) => {
     const { duration, focus } = req.body;
 
     const result = await mcpService.suggestStudyPlan(userId, duration || 'week', focus);
+    
+    if (result.success === false) {
+      return res.status(403).json(result);
+    }
+
     const data = JSON.parse(result.content[0].text);
 
     res.json({
@@ -174,7 +212,7 @@ export const suggestStudyPlan = async (req, res) => {
       data,
     });
   } catch (error) {
-    logger.error('Error suggesting study plan:', error);
+    logger.error('[MCP] Error suggesting study plan:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to suggest study plan',
@@ -190,6 +228,11 @@ export const detectAnomalies = async (req, res) => {
     const { days } = req.query;
 
     const result = await mcpService.detectAnomalies(userId, parseInt(days) || 14);
+    
+    if (result.success === false) {
+      return res.status(403).json(result);
+    }
+
     const data = JSON.parse(result.content[0].text);
 
     res.json({
@@ -197,7 +240,7 @@ export const detectAnomalies = async (req, res) => {
       data,
     });
   } catch (error) {
-    logger.error('Error detecting anomalies:', error);
+    logger.error('[MCP] Error detecting anomalies:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to detect anomalies',
@@ -218,6 +261,11 @@ export const generateReport = async (req, res) => {
       reportType || 'comprehensive',
       req.user.id
     );
+    
+    if (result.success === false) {
+      return res.status(403).json(result);
+    }
+
     const data = JSON.parse(result.content[0].text);
 
     res.json({
@@ -225,7 +273,7 @@ export const generateReport = async (req, res) => {
       data,
     });
   } catch (error) {
-    logger.error('Error generating report:', error);
+    logger.error('[MCP] Error generating report:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to generate report',
@@ -244,7 +292,7 @@ export const listMCPTools = async (req, res) => {
       data: tools,
     });
   } catch (error) {
-    logger.error('Error listing MCP tools:', error);
+    logger.error('[MCP] Error listing MCP tools:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to list MCP tools',
@@ -273,7 +321,7 @@ export const getUserInsights = async (req, res) => {
       data: insights,
     });
   } catch (error) {
-    logger.error('Error getting user insights:', error);
+    logger.error('[MCP] Error getting user insights:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to get user insights',
@@ -297,7 +345,7 @@ export const markInsightRead = async (req, res) => {
       data: insight,
     });
   } catch (error) {
-    logger.error('Error marking insight as read:', error);
+    logger.error('[MCP] Error marking insight as read:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to mark insight as read',
@@ -321,7 +369,7 @@ export const dismissInsight = async (req, res) => {
       data: insight,
     });
   } catch (error) {
-    logger.error('Error dismissing insight:', error);
+    logger.error('[MCP] Error dismissing insight:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to dismiss insight',
@@ -350,7 +398,7 @@ export const getMCPQueryLogs = async (req, res) => {
       data: logs,
     });
   } catch (error) {
-    logger.error('Error getting MCP query logs:', error);
+    logger.error('[MCP] Error getting MCP query logs:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to get MCP query logs',

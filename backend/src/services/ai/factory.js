@@ -1,9 +1,10 @@
 /**
  * AI Service Factory
  * 
- * Central factory for creating and configuring AI services based on user tier.
+ * Central factory for creating and configuring AI services based on user tier and features.
  * Handles:
- * - Tier-based service selection (Free, Premium, Enterprise)
+ * - Feature flag-based service selection (enabled/disabled per tier)
+ * - Tier-based service configuration (Free, Premium, Enterprise)
  * - Service configuration management
  * - Instance pooling and reuse
  * - Fallback to NoOp services when features are unavailable
@@ -14,10 +15,16 @@
 
 import { BaseAIService, NotImplementedError } from './base.service.js';
 import { NoOpAIService, createNoOpService } from './noop.service.js';
+import {
+  isFeatureEnabledForTier,
+  FEATURES,
+  SUBSCRIPTION_TIERS,
+} from '../../config/features.config.js';
+import { logger } from '../../utils/logger.utils.js';
 
 /**
  * Service registry for mapping service names to their implementations
- * Will be populated with actual service classes in next phase
+ * Populated during factory initialization with actual service classes
  * 
  * @type {Map<string, Function>}
  * @private
@@ -26,209 +33,212 @@ const SERVICE_REGISTRY = new Map();
 
 /**
  * Cached service instances organized by tier and service name
+ * Prevents unnecessary service recreation
  * 
  * @type {Object}
  * @private
  */
 const SERVICE_CACHE = {
-  free: {},
-  premium: {},
-  enterprise: {}
+  [SUBSCRIPTION_TIERS.FREE]: {},
+  [SUBSCRIPTION_TIERS.PREMIUM]: {},
+  [SUBSCRIPTION_TIERS.ENTERPRISE]: {}
 };
 
 /**
- * Feature availability by tier
- * 
- * Defines which features are available for each user tier.
- * Can be overridden via config during factory initialization.
- * 
+ * Service initialization status tracker
  * @type {Object}
+ * @private
  */
-export const TIER_FEATURES = {
-  free: {
-    // Free tier has limited AI features
-    quizGeneration: false,
-    documentAnalysis: false,
-    ragService: false,
-    contentGeneration: false,
-    advancedChat: false
-  },
-  premium: {
-    // Premium tier has most AI features
-    quizGeneration: true,
-    documentAnalysis: true,
-    ragService: true,
-    contentGeneration: true,
-    advancedChat: true
-  },
-  enterprise: {
-    // Enterprise tier has all features plus extended capabilities
-    quizGeneration: true,
-    documentAnalysis: true,
-    ragService: true,
-    contentGeneration: true,
-    advancedChat: true,
-    customModels: true,
-    dedicatedSupport: true
-  }
+const INITIALIZATION_STATUS = {
+  initialized: false,
+  services: {},
+  errors: []
+};
+
+/**
+ * Feature to service mapping
+ * Maps feature flags to service names for lookup
+ * @type {Object}
+ * @private
+ */
+const FEATURE_SERVICE_MAP = {
+  [FEATURES.AI_CHAT_ENABLED]: 'chat',
+  [FEATURES.MCP_ENABLED]: 'mcp',
+  [FEATURES.PINECONE_ENABLED]: 'rag',
+  [FEATURES.QUIZ_GENERATION_ENABLED]: 'quiz',
+  [FEATURES.DOCUMENT_ANALYSIS_ENABLED]: 'document-analysis',
 };
 
 /**
  * Register an AI service implementation
  * 
  * Called during app initialization to register actual service implementations.
+ * Only registered services can be instantiated by the factory.
  * 
- * @param {string} serviceName - Unique identifier for the service
+ * @param {string} serviceName - Unique identifier for the service (e.g., 'chat', 'mcp', 'quiz')
  * @param {Function} ServiceClass - Service class (must extend BaseAIService)
  * @throws {TypeError} If ServiceClass doesn't extend BaseAIService
  * 
  * @example
  * registerService('quiz', QuizGenerationService);
- * registerService('rag', RAGService);
- * registerService('chat', AdvancedChatService);
+ * registerService('mcp', MCPService);
  */
 export function registerService(serviceName, ServiceClass) {
-  if (!(ServiceClass.prototype instanceof BaseAIService || ServiceClass === BaseAIService)) {
-    throw new TypeError(
-      `Service '${serviceName}' must extend BaseAIService. ` +
-      `Got: ${ServiceClass.name}`
-    );
+  try {
+    if (!(ServiceClass.prototype instanceof BaseAIService || ServiceClass === BaseAIService)) {
+      throw new TypeError(
+        `Service '${serviceName}' must extend BaseAIService. Got: ${ServiceClass.name}`
+      );
+    }
+    
+    SERVICE_REGISTRY.set(serviceName, ServiceClass);
+    logger.info(`[ServiceFactory] Registered service: ${serviceName}`);
+  } catch (error) {
+    logger.error(`[ServiceFactory] Failed to register service ${serviceName}:`, error.message);
+    throw error;
   }
-  
-  SERVICE_REGISTRY.set(serviceName, ServiceClass);
-  console.log(`[ServiceFactory] Registered service: ${serviceName}`);
 }
 
 /**
  * Create or retrieve a cached AI service instance
  * 
  * Returns appropriate service based on:
- * 1. User tier (free/premium/enterprise)
- * 2. Feature availability for that tier
- * 3. Service configuration
+ * 1. User tier (FREE/PREMIUM/ENTERPRISE)
+ * 2. Feature flag for the service
+ * 3. Service registration status
+ * 4. Cached instance (if exists)
  * 
- * Returns NoOp service if feature is not available for the user tier.
- * Caches instances to avoid recreating them.
+ * Returns NoOp service if:
+ * - Feature is disabled for user tier
+ * - Service is not registered
+ * - Initialization fails (graceful degradation)
  * 
  * @param {string} serviceName - Name of the service to create
- * @param {string} userTier - User subscription tier (free/premium/enterprise)
+ * @param {string} userTier - User subscription tier (defaults to FREE)
  * @param {Object} config - Service configuration
- * @param {Object} config.logger - Logger instance
- * @param {Object} config.featureOverrides - Override feature availability
+ * @param {Object} config.logger - Logger instance for service
  * @param {boolean} config.forceNoOp - Force NoOp service regardless of tier
  * @returns {BaseAIService} Service instance or NoOp fallback
  * 
- * @throws {Error} If service is not registered
- * 
  * @example
- * // Get quiz service for premium user
- * const quizService = createAIService('quiz', 'premium', {
- *   logger: myLogger,
- *   apiKey: process.env.QUIZ_SERVICE_KEY
+ * // Get MCP service for premium user
+ * const mcpService = createAIService('mcp', SUBSCRIPTION_TIERS.PREMIUM, {
+ *   logger: myLogger
  * });
  * 
- * // Get chat service, will be NoOp for free tier
- * const chatService = createAIService('chat', 'free');
- * const response = await chatService.sendMessage('hello');
- * // Returns: { success: false, message: '...' }
+ * // Get service for free user (will be NoOp if feature disabled)
+ * const chatService = createAIService('chat', SUBSCRIPTION_TIERS.FREE);
  */
-export function createAIService(serviceName, userTier = 'free', config = {}) {
-  // Normalize tier
-  const tier = (userTier || 'free').toLowerCase();
-  if (!['free', 'premium', 'enterprise'].includes(tier)) {
-    throw new Error(`Invalid user tier: ${userTier}. Must be one of: free, premium, enterprise`);
+export function createAIService(serviceName, userTier = SUBSCRIPTION_TIERS.FREE, config = {}) {
+  try {
+    // Normalize and validate tier
+    const tier = (userTier || SUBSCRIPTION_TIERS.FREE).toUpperCase();
+    const validTiers = Object.values(SUBSCRIPTION_TIERS);
+    
+    if (!validTiers.includes(tier)) {
+      logger.warn(`Invalid user tier: ${userTier}. Defaulting to FREE`);
+      return createAIService(serviceName, SUBSCRIPTION_TIERS.FREE, config);
+    }
+
+    // Check cache first
+    if (SERVICE_CACHE[tier][serviceName]) {
+      logger.debug(`[ServiceFactory] Retrieved cached service: ${serviceName} for tier: ${tier}`);
+      return SERVICE_CACHE[tier][serviceName];
+    }
+
+    // Check if feature is enabled for this tier
+    const feature = Object.entries(FEATURE_SERVICE_MAP).find(([_, svc]) => svc === serviceName)?.[0];
+    const forceNoOp = config.forceNoOp || !isFeatureEnabledForTier(feature || serviceName, tier);
+
+    if (forceNoOp) {
+      logger.info(`[ServiceFactory] Feature disabled or not available for ${serviceName} in ${tier} tier`);
+      const noOpService = createNoOpService(serviceName, config);
+      SERVICE_CACHE[tier][serviceName] = noOpService;
+      return noOpService;
+    }
+
+    // Check if service is registered
+    if (!SERVICE_REGISTRY.has(serviceName)) {
+      logger.warn(
+        `[ServiceFactory] Service '${serviceName}' not registered. ` +
+        `Available services: ${Array.from(SERVICE_REGISTRY.keys()).join(', ')}`
+      );
+      const noOpService = createNoOpService(serviceName, config);
+      SERVICE_CACHE[tier][serviceName] = noOpService;
+      return noOpService;
+    }
+
+    // Create service instance with merged config
+    const ServiceClass = SERVICE_REGISTRY.get(serviceName);
+    const serviceConfig = {
+      ...config,
+      serviceName,
+      tier,
+      logger: config.logger || logger
+    };
+
+    const service = new ServiceClass(serviceConfig);
+    logger.info(`[ServiceFactory] Created service instance: ${serviceName} for tier: ${tier}`);
+
+    // Cache the instance
+    SERVICE_CACHE[tier][serviceName] = service;
+
+    return service;
+  } catch (error) {
+    logger.error(`[ServiceFactory] Error creating service ${serviceName}:`, error.message);
+    // Return NoOp service for graceful degradation
+    return createNoOpService(serviceName, config);
   }
-
-  // Check cache first
-  const cacheKey = `${serviceName}-${tier}`;
-  if (SERVICE_CACHE[tier][serviceName]) {
-    return SERVICE_CACHE[tier][serviceName];
-  }
-
-  // Get feature availability for this tier
-  const featureOverrides = config.featureOverrides || {};
-  const tierFeatures = {
-    ...TIER_FEATURES[tier],
-    ...featureOverrides
-  };
-
-  // Convert camelCase to snake_case for feature lookup
-  const featureKey = serviceName
-    .replace(/([A-Z])/g, '_$1')
-    .toLowerCase()
-    .replace(/^_/, '');
-  
-  const featureAvailable = tierFeatures[featureKey] !== false;
-
-  // Force NoOp if requested or feature not available
-  if (config.forceNoOp || !featureAvailable) {
-    const noOpService = createNoOpService(serviceName, config);
-    SERVICE_CACHE[tier][serviceName] = noOpService;
-    return noOpService;
-  }
-
-  // Check if service is registered
-  if (!SERVICE_REGISTRY.has(serviceName)) {
-    console.warn(
-      `[ServiceFactory] Service '${serviceName}' not registered. ` +
-      `Available services: ${Array.from(SERVICE_REGISTRY.keys()).join(', ')}`
-    );
-    // Return NoOp if service not registered
-    const noOpService = createNoOpService(serviceName, config);
-    SERVICE_CACHE[tier][serviceName] = noOpService;
-    return noOpService;
-  }
-
-  // Create service instance
-  const ServiceClass = SERVICE_REGISTRY.get(serviceName);
-  const service = new ServiceClass(config);
-
-  // Cache the instance
-  SERVICE_CACHE[tier][serviceName] = service;
-
-  return service;
 }
 
 /**
- * Initialize all registered services
+ * Initialize all services for a specific tier
  * 
- * Called on application startup to initialize all AI services.
- * Should be awaited before the application starts handling requests.
+ * Called on application startup to pre-initialize services.
+ * Gracefully handles initialization failures without crashing.
  * 
  * @async
- * @param {Array<string>} servicesToInitialize - Services to initialize (all if not specified)
+ * @param {Array<string>} serviceNames - Services to initialize
+ * @param {string} tier - Subscription tier to initialize for
  * @param {Object} config - Configuration for services
  * @returns {Promise<Object>} Initialization results with success/failure status
  * 
  * @example
- * const results = await initializeServices(['quiz', 'rag', 'chat']);
- * console.log(results);
- * // { quiz: true, rag: true, chat: false }
+ * await initializeServicesForTier(['chat', 'mcp', 'quiz'], SUBSCRIPTION_TIERS.PREMIUM);
  */
-export async function initializeServices(servicesToInitialize = [], config = {}) {
+export async function initializeServicesForTier(serviceNames = [], tier = SUBSCRIPTION_TIERS.PREMIUM, config = {}) {
   const results = {};
-  const tiers = ['premium', 'enterprise']; // Initialize these tiers, free tier uses NoOp
+  logger.info(`[ServiceFactory] Initializing services for tier: ${tier}`);
 
-  for (const serviceName of servicesToInitialize) {
-    results[serviceName] = {};
-    
-    for (const tier of tiers) {
-      try {
-        const service = createAIService(serviceName, tier, config);
-        if (service.initialized === false) {
-          await service.initialize();
-        }
-        results[serviceName][tier] = { success: true, message: 'Initialized' };
-      } catch (error) {
-        results[serviceName][tier] = { 
-          success: false, 
-          message: error.message 
-        };
-        console.error(
-          `[ServiceFactory] Failed to initialize ${serviceName} for ${tier} tier:`,
-          error.message
-        );
+  for (const serviceName of serviceNames) {
+    try {
+      const service = createAIService(serviceName, tier, config);
+      
+      // Initialize if not already initialized
+      if (service.initialized === false && typeof service.initialize === 'function') {
+        await service.initialize();
+        logger.info(`[ServiceFactory] Initialized service: ${serviceName} for ${tier}`);
       }
+      
+      results[serviceName] = { 
+        success: true, 
+        message: 'Initialized successfully' 
+      };
+      INITIALIZATION_STATUS.services[`${serviceName}-${tier}`] = 'ready';
+    } catch (error) {
+      logger.warn(
+        `[ServiceFactory] Service ${serviceName} failed to initialize for ${tier}:`,
+        error.message
+      );
+      results[serviceName] = { 
+        success: false, 
+        message: error.message 
+      };
+      INITIALIZATION_STATUS.errors.push({
+        service: serviceName,
+        tier,
+        error: error.message
+      });
     }
   }
 
@@ -236,26 +246,45 @@ export async function initializeServices(servicesToInitialize = [], config = {})
 }
 
 /**
- * Get status of all services
+ * Get current initialization status
  * 
- * Useful for health checks and monitoring.
+ * Useful for health checks and debugging
+ * 
+ * @returns {Object} Initialization status details
+ */
+export function getInitializationStatus() {
+  return {
+    ...INITIALIZATION_STATUS,
+    totalErrors: INITIALIZATION_STATUS.errors.length
+  };
+}
+
+/**
+ * Get status of all services for a tier
+ * 
+ * Useful for health checks and monitoring
  * 
  * @async
  * @param {string} tier - User tier to check services for
  * @returns {Promise<Object>} Status of all services for that tier
  * 
  * @example
- * const status = await getServicesStatus('premium');
- * console.log(status);
- * // { quiz: { healthy: true, message: '...' }, rag: { healthy: false, ... } }
+ * const status = await getServicesStatus(SUBSCRIPTION_TIERS.PREMIUM);
  */
-export async function getServicesStatus(tier = 'premium') {
+export async function getServicesStatus(tier = SUBSCRIPTION_TIERS.PREMIUM) {
   const status = {};
   const cachedServices = SERVICE_CACHE[tier] || {};
 
   for (const [serviceName, service] of Object.entries(cachedServices)) {
     try {
-      status[serviceName] = await service.getStatus();
+      if (typeof service.getStatus === 'function') {
+        status[serviceName] = await service.getStatus();
+      } else {
+        status[serviceName] = {
+          healthy: false,
+          message: 'Service does not support status checks'
+        };
+      }
     } catch (error) {
       status[serviceName] = {
         healthy: false,
@@ -268,47 +297,73 @@ export async function getServicesStatus(tier = 'premium') {
 }
 
 /**
- * Shutdown all services
+ * Shutdown all services gracefully
  * 
- * Called on application shutdown or restart.
- * Ensures graceful cleanup of connections and resources.
+ * Called on application shutdown to clean up connections and resources
  * 
  * @async
  * @returns {Promise<void>}
  */
 export async function shutdownAllServices() {
+  logger.info('[ServiceFactory] Shutting down all services...');
   const promises = [];
 
   for (const tierCache of Object.values(SERVICE_CACHE)) {
     for (const service of Object.values(tierCache)) {
       if (typeof service.shutdown === 'function') {
-        promises.push(service.shutdown().catch(err => {
-          console.error(`[ServiceFactory] Error shutting down ${service.serviceName}:`, err);
-        }));
+        promises.push(
+          service.shutdown().catch(err => {
+            logger.error(`[ServiceFactory] Error shutting down ${service.serviceName}:`, err.message);
+          })
+        );
       }
     }
   }
 
   await Promise.all(promises);
-  console.log('[ServiceFactory] All services shut down');
+  logger.info('[ServiceFactory] All services shut down');
+  INITIALIZATION_STATUS.initialized = false;
 }
 
 /**
  * Clear service cache
  * 
- * Useful for testing or forcing service recreation.
+ * Useful for testing or forcing service recreation
  * 
  * @param {string} tier - Tier to clear cache for (all tiers if not specified)
  */
 export function clearServiceCache(tier) {
   if (tier) {
     SERVICE_CACHE[tier] = {};
+    logger.debug(`[ServiceFactory] Cleared cache for tier: ${tier}`);
   } else {
-    SERVICE_CACHE.free = {};
-    SERVICE_CACHE.premium = {};
-    SERVICE_CACHE.enterprise = {};
+    SERVICE_CACHE[SUBSCRIPTION_TIERS.FREE] = {};
+    SERVICE_CACHE[SUBSCRIPTION_TIERS.PREMIUM] = {};
+    SERVICE_CACHE[SUBSCRIPTION_TIERS.ENTERPRISE] = {};
+    logger.debug('[ServiceFactory] Cleared all service caches');
   }
 }
 
+/**
+ * Get all registered services
+ * 
+ * @returns {Array<string>} List of registered service names
+ */
+export function getRegisteredServices() {
+  return Array.from(SERVICE_REGISTRY.keys());
+}
+
+/**
+ * Check if a service is available for a tier
+ * 
+ * @param {string} serviceName - Service name
+ * @param {string} tier - User tier
+ * @returns {boolean} Whether the service is available
+ */
+export function isServiceAvailable(serviceName, tier = SUBSCRIPTION_TIERS.PREMIUM) {
+  const feature = Object.entries(FEATURE_SERVICE_MAP).find(([_, svc]) => svc === serviceName)?.[0];
+  return isFeatureEnabledForTier(feature || serviceName, tier);
+}
+
 // Export cache and registry for advanced use cases
-export { SERVICE_CACHE, SERVICE_REGISTRY };
+export { SERVICE_CACHE, SERVICE_REGISTRY, SUBSCRIPTION_TIERS, FEATURES };

@@ -8,6 +8,8 @@ import rateLimit from 'express-rate-limit';
 // Import configurations
 import { connectRedis } from './config/redis.js';
 import { initializeSocket } from './socket/index.js';
+import { isFeatureEnabledForTier, FEATURES, SUBSCRIPTION_TIERS } from './config/features.config.js';
+import mcpService from './services/mcp.service.js';
 
 // Import middleware
 import { errorHandler } from './middleware/error.middleware.js';
@@ -205,6 +207,34 @@ app.use('/api/announcements', announcementRoutes);
 app.use('/api/notes', noteRoutes);
 app.use('/api/mcp', mcpRoutes);
 app.use('/api/ai-chat', aiChatRoutes);
+
+/**
+ * Initialize MCP Service if enabled
+ * REASON: Only initialize if feature flag is enabled to avoid unnecessary resource usage
+ * Gracefully handles initialization failures without crashing the app
+ */
+async function initializeMCPService() {
+  try {
+    const isMCPEnabled = isFeatureEnabledForTier(FEATURES.MCP_ENABLED, SUBSCRIPTION_TIERS.PREMIUM);
+    
+    if (!isMCPEnabled) {
+      logger.info('[MCP] Service initialization skipped - MCP_ENABLED feature flag is disabled');
+      return;
+    }
+
+    logger.info('[MCP] Starting MCP service initialization...');
+    await mcpService.initialize();
+    logger.info('[MCP] MCP service initialized successfully');
+  } catch (error) {
+    logger.warn('[MCP] Failed to initialize MCP service - graceful degradation enabled:', error.message);
+    // Don't throw - let the app continue. MCP routes will return graceful error responses.
+  }
+}
+
+// Initialize MCP service asynchronously (non-blocking startup)
+initializeMCPService().catch(error => {
+  logger.error('[MCP] Unexpected error during async initialization:', error);
+});
 
 /**
  * 404 handler - Catch all unmatched routes

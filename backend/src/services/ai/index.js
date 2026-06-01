@@ -18,9 +18,15 @@ export {
 export {
   createAIService,
   registerService,
-  initializeServices,
+  initializeServicesForTier,
   getServicesStatus,
   shutdownAllServices,
   clearServiceCache,
-  TIER_FEATURES
+  getInitializationStatus,
+  getRegisteredServices,
+  isServiceAvailable,
+  SERVICE_CACHE,
+  SERVICE_REGISTRY,
+  SUBSCRIPTION_TIERS,
+  FEATURES
 } from './factory.js';
