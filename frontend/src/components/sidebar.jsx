@@ -1,161 +1,81 @@
 "use client"
 
-import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { useAuth } from "@/lib/auth-context"
-import { ThemeToggle } from "./theme-toggle"
-import {
-  Home,
-  Users,
-  BookOpen,
-  Calendar,
-  FileText,
-  Video,
-  Settings,
-  LogOut,
-  Bell,
-  Upload,
-  ChevronLeft,
-  ChevronRight,
-  GraduationCap,
-  MessageSquare,
-  BarChart3,
-  Layers,
-} from "lucide-react"
+import { useState } from "react"
+import { Link } from "react-router-dom"
+import { Menu, MenuItems, MenuTrigger, MenuContent, MenuItem } from "@/components/ui/menu"
 
-const menuItems = {
-  admin: [
-    { id: "dashboard", label: "Dashboard", icon: Home },
-    { id: "students", label: "Students", icon: Users },
-    { id: "teachers", label: "Teachers", icon: GraduationCap },
-    { id: "batches", label: "Batches", icon: Layers },
-    { id: "classes", label: "Classes", icon: BookOpen },
-    { id: "quizzes", label: "Quiz Management", icon: FileText },
-    { id: "schedule", label: "Schedule", icon: Calendar },
-    { id: "notifications", label: "Notifications", icon: Bell },
-    { id: "analytics", label: "Analytics", icon: BarChart3 },
-    { id: "settings", label: "Settings", icon: Settings },
-  ],
-  teacher: [
-    { id: "dashboard", label: "Dashboard", icon: Home },
-    { id: "batch-select", label: "Select Batch", icon: Layers },
-    { id: "schedule", label: "My Schedule", icon: Calendar },
-    { id: "quizzes", label: "Quizzes", icon: FileText },
-    { id: "upload-notes", label: "Upload Notes", icon: Upload },
-    { id: "students", label: "My Students", icon: Users },
-    { id: "notifications", label: "Notifications", icon: Bell },
-    { id: "recordings", label: "Recordings", icon: Video },
-    { id: "chat", label: "Chat", icon: MessageSquare },
-  ],
-  student: [
-    { id: "dashboard", label: "Dashboard", icon: Home },
-    { id: "schedule", label: "Class Schedule", icon: Calendar },
-    { id: "quizzes", label: "Quizzes", icon: FileText },
-    { id: "notes", label: "Notes", icon: FileText },
-    { id: "recordings", label: "Recordings", icon: Video },
-    { id: "chat", label: "Chat", icon: MessageSquare },
-    { id: "notifications", label: "Notifications", icon: Bell },
-  ],
-}
+export const Sidebar = ({
+  activeItem,
+  onItemClick,
+  userRole,
+  isCollapsed,
+  onToggleCollapse,
+}) => {
+  const menuItems = {
+    teacher: [
+      { label: 'Dashboard', value: 'dashboard' },
+      { label: 'My Schedule', value: 'schedule' },
+      { label: 'Upload Notes', value: 'upload-notes' },
+      { label: 'My Students', value: 'students' },
+      { label: 'Class Recordings', value: 'recordings' },
+      { label: 'Notifications', value: 'notifications' },
+      { label: 'Chat', value: 'chat' },
+      { label: 'Quizzes', value: 'quizzes' },
+    ],
+    student: [
+      { label: 'Dashboard', value: 'dashboard' },
+      { label: 'Class Schedule', value: 'schedule' },
+      { label: 'Class Notes', value: 'notes' },
+      { label: 'Class Recordings', value: 'recordings' },
+      { label: 'Notifications', value: 'notifications' },
+      { label: 'Chat', value: 'chat' },
+    ],
+    admin: [
+      { label: 'Dashboard', value: 'dashboard' },
+      { label: 'Students', value: 'students' },
+      { label: 'Teachers', value: 'teachers' },
+      { label: 'Batches', value: 'batches' },
+      { label: 'Classes', value: 'classes' },
+      { label: 'Schedule', value: 'schedule' },
+      { label: 'Notifications', value: 'notifications' },
+      { label: 'Analytics', value: 'analytics' },
+      { label: 'Settings', value: 'settings' },
+      { label: 'Quizzes', value: 'quizzes' },
+    ],
+  }
 
-export function Sidebar({ activeItem, onItemClick, userRole, isCollapsed = false, onToggleCollapse }) {
-  const { user, logout } = useAuth()
-  const items = menuItems[userRole]
+  const items = menuItems[userRole] || menuItems.student
 
   return (
-    <div
-      className={cn(
-        "flex flex-col h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 transition-all duration-300",
-        isCollapsed ? "w-16" : "w-64",
-      )}
-    >
-      {/* Header */}
-      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-center justify-between">
-          {!isCollapsed && (
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
-                <GraduationCap className="w-5 h-5 text-white" />
-              </div>
-              <span className="font-bold text-lg bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                EduPlatform
-              </span>
-            </div>
-          )}
-          {onToggleCollapse && (
-            <Button variant="ghost" size="icon" onClick={onToggleCollapse} className="h-8 w-8 rounded-full">
-              {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* User Info */}
-      {!isCollapsed && (
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center space-x-3">
-            <Avatar className="h-10 w-10">
-              <AvatarImage src={user?.avatar || "/placeholder.svg"} />
-              <AvatarFallback className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white">
-                {user?.name?.charAt(0)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{user?.name}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{user?.role}</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Navigation */}
-      <ScrollArea className="flex-1 px-3 py-4">
-        <nav className="space-y-2">
-          {items.map((item) => {
-            const Icon = item.icon
-            const isActive = activeItem === item.id
-
-            return (
-              <Button
-                key={item.id}
-                variant={isActive ? "default" : "ghost"}
-                className={cn(
-                  "w-full justify-start rounded-xl transition-all duration-200 hover:scale-[1.02]",
-                  isActive && "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg",
-                  !isActive && "hover:bg-gray-100 dark:hover:bg-gray-800",
-                  isCollapsed && "px-2",
-                )}
-                onClick={() => onItemClick(item.id)}
-              >
-                <Icon className={cn("h-5 w-5", !isCollapsed && "mr-3")} />
-                {!isCollapsed && <span>{item.label}</span>}
-              </Button>
-            )
-          })}
-        </nav>
-      </ScrollArea>
-
-      {/* Footer */}
-      <div className="p-3 border-t border-gray-200 dark:border-gray-700 space-y-2">
-        <div className="flex items-center justify-between">
-          {!isCollapsed && <span className="text-sm text-gray-500">Theme</span>}
-          <ThemeToggle />
-        </div>
-
-        <Button
-          variant="ghost"
-          className={cn(
-            "w-full justify-start rounded-xl text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-200",
-            isCollapsed && "px-2",
-          )}
-          onClick={logout}
+    <aside className="fixed left-0 top-0 h-screen w-64 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 shrink-0 transform transition-transform duration-300 ease-out" style={{ transform: isCollapsed ? 'translateX(-100%)' : 'translateX(0)' }}>
+      <div className="flex h-16 items-center justify-between px-4">
+        <button
+          onClick={onToggleCollapse}
+          className="hidden lg:block p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600"
+          aria-label="Collapse sidebar"
         >
-          <LogOut className={cn("h-5 w-5", !isCollapsed && "mr-3")} />
-          {!isCollapsed && <span>Logout</span>}
-        </Button>
+          ←
+        </button>
       </div>
-    </div>
+
+      <nav className="flex-1 pt-6">
+        <ul className="space-y-1">
+          {items.map((item) => (
+            <li key={item.value} className="group">
+              <Link
+                onClick={() => onItemClick(item.value)}
+                className="flex items-center rounded-md px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 group-[.active]:bg-primary-600 group-[.active]:text-white"
+                style={{
+                  background: activeItem === item.value ? 'primary-600' : 'transparent',
+                  color: activeItem === item.value ? 'white' : 'currentColor',
+                }}
+              >
+                {item.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    </aside>
   )
 }
