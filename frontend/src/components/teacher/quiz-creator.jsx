@@ -1,6 +1,10 @@
 "use client"
 
 import { useState } from "react"
+
+const getQuestionName = (idx) => `questions[${idx}][question]`
+const getOptionsName = (idx, i) => `questions[${idx}][options][${i}]`
+const getMarksName = (idx) => `questions[${idx}][marks]`
 import { useAuth } from "@/lib/auth-context"
 import { useQuiz } from "@/lib/quiz-context"
 import { Card } from "@/components/ui/card"
@@ -124,7 +128,7 @@ export const QuizCreator = () => {
                         questions[idx].question = e.target.value
                         setFormData({ ...formData, questions })
                       }}
-                      name={`questions[${idx}][question]`
+                      name={getQuestionName(idx)}
                     />
                     <Select onValueChange={(val) => {
                       const questions = [...formData.questions]
@@ -151,7 +155,7 @@ export const QuizCreator = () => {
                             questions[idx].options[i] = e.target.value
                             setFormData({ ...formData, questions })
                           }}
-                          name={`questions[${idx}][options][${i}]`
+                          name={getOptionsName(idx, i)}
                         />
                       ))}
                     </div>
@@ -182,7 +186,7 @@ export const QuizCreator = () => {
                         setFormData({ ...formData, questions })
                       }}
                       placeholder="Marks"
-                      name={`questions[${idx}][marks]`
+                      name={getMarksName(idx)}
                     />
                     <Button
                       variant="outline"

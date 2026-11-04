@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { Link } from "react-router-dom"
-import { Menu, MenuItems, MenuTrigger, MenuContent, MenuItem } from "@/components/ui/menu"
 
 export const Sidebar = ({
   activeItem,
