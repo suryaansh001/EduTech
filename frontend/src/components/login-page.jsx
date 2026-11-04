@@ -14,6 +14,7 @@ export function LoginPage() {
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const { login } = useAuth()
 
   const handleSubmit = async (e) => {
