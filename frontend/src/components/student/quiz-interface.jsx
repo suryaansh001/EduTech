@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTrigger, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { API_BASE_URL } from "@/lib/api"
 
 export const QuizInterface = () => {
   const { user } = useAuth()
@@ -28,7 +29,7 @@ export const QuizInterface = () => {
     const fetchQuizzes = async () => {
       if (!user) return
       try {
-        const response = await fetch("/api/quizzes", {
+        const response = await fetch(`${API_BASE_URL}/quizzes`, {
           credentials: "include"
         })
         const data = await response.json()
@@ -70,7 +71,7 @@ export const QuizInterface = () => {
     const fetchExistingAttempt = async () => {
       if (!quiz || !user) return
       try {
-        const response = await fetch(`/api/quizzes/${quiz.id}/my-attempts`, {
+        const response = await fetch(`${API_BASE_URL}/quizzes/${quiz.id}/my-attempts`, {
           credentials: "include"
         })
         const data = await response.json()
@@ -101,7 +102,7 @@ export const QuizInterface = () => {
     }
 
     try {
-      const response = await fetch(`/api/quizzes/${quiz.id}/submit`, {
+      const response = await fetch(`${API_BASE_URL}/quizzes/${quiz.id}/submit`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

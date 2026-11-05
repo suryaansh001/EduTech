@@ -3,7 +3,9 @@
  * Handles all HTTP requests to the API
  */
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000')
+  .replace(/\/api\/?$/, '');
+export const API_BASE_URL = `${API_URL}/api`;
 
 /**
  * Fetch with error handling
