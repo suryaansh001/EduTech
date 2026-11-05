@@ -1,4 +1,5 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { useLocation, useNavigate } from "react-router-dom"
 import { useAuth } from "@/lib/auth-context"
 import { LoginPage } from "@/components/login-page"
 import { Sidebar } from "@/components/sidebar"
@@ -17,9 +18,16 @@ import { ChatContainer } from "@/components/chat/ChatContainer"
 
 function AppContent() {
   const { user, isLoading } = useAuth()
+  const location = useLocation()
   const [activeItem, setActiveItem] = useState("dashboard")
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+
+  useEffect(() => {
+    const segments = location.pathname.split("/").filter(Boolean)
+    const item = segments[1] || "dashboard"
+    setActiveItem(item === user?.role ? "dashboard" : item)
+  }, [location.pathname, user?.role])
 
   if (isLoading) {
     return (
@@ -248,6 +256,8 @@ function AppContent() {
           userRole={user.role}
           isCollapsed={isSidebarCollapsed}
           onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          isMobileOpen={isMobileSidebarOpen}
+          onCloseMobile={() => setIsMobileSidebarOpen(false)}
         />
       }
       header={
@@ -257,6 +267,7 @@ function AppContent() {
           onMenuClick={() => setIsMobileSidebarOpen(true)}
         />
       }
+      isSidebarCollapsed={isSidebarCollapsed}
     >
       {renderContent()}
     </DashboardLayout>
