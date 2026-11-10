@@ -11,6 +11,7 @@ import { StudentsManagement } from "@/components/admin/students-management"
 import { TeachersManagement } from "@/components/admin/teachers-management"
 import { ClassesManagement } from "@/components/admin/classes-management"
 import { TeacherDashboard } from "@/components/teacher/teacher-dashboard"
+import { MyStudents } from "@/components/teacher/my-students"
 import { StudentDashboard } from "@/components/student/student-dashboard"
 import { NotesViewer } from "@/components/student/notes-viewer"
 import { QuizCreator } from "@/components/teacher/quiz-creator"
@@ -122,7 +123,7 @@ function AppContent() {
         case "upload-notes":
           return <Placeholder title="Upload Notes" description="Share study materials and class notes with your students." />
         case "students":
-          return <Placeholder title="My Students" description="View and manage the students in your classes." />
+          return <MyStudents />
         case "notifications":
           return <Placeholder title="Notifications" description="Important alerts and updates for teachers will appear here." />
         case "recordings":
