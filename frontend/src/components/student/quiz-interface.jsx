@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import { CheckCircle2, ChevronLeft, ChevronRight, Clock3, RotateCcw, Send } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { CheckCircle2, ChevronLeft, ChevronRight, Clock3, Send } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -14,62 +14,80 @@ const formatTime = (seconds) => {
   return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`
 }
 
+const formatDateTime = (value) => {
+  if (!value) return "Not set"
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return "Not set"
+  return d.toLocaleString()
+}
+
+const getQuizStatus = (quiz, now = new Date()) => {
+  if (!quiz?.isActive) return "inactive"
+  const start = quiz.startTime ? new Date(quiz.startTime) : null
+  const end = quiz.endTime ? new Date(quiz.endTime) : null
+  if (start && !Number.isNaN(start.getTime()) && now < start) return "upcoming"
+  if (end && !Number.isNaN(end.getTime()) && now > end) return "ended"
+  return "active"
+}
+
 export const QuizInterface = () => {
   const { user } = useAuth()
   const { getQuizzesByBatch, getAttemptsByStudent, submitQuizAttempt } = useQuiz()
   const quizzes = getQuizzesByBatch(user?.batchId)
   const attempts = getAttemptsByStudent(user?.id)
 
-  const availableQuiz = useMemo(
-    () => quizzes.find((quiz) => !attempts.some((attempt) => attempt.quizId === quiz.id)),
-    [quizzes, attempts]
-  )
-
-  const [selectedQuizId, setSelectedQuizId] = useState(availableQuiz?.id || quizzes[0]?.id || null)
+  const [selectedQuizId, setSelectedQuizId] = useState(null)
   const [questionIndex, setQuestionIndex] = useState(0)
   const [answers, setAnswers] = useState({})
   const [timeLeft, setTimeLeft] = useState(0)
   const [submitted, setSubmitted] = useState(false)
   const [result, setResult] = useState(null)
+  const [sessionReady, setSessionReady] = useState(false)
+  const [now, setNow] = useState(new Date())
+  const autoSubmittedRef = useRef(false)
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(interval)
+  }, [])
+
+  useEffect(() => {
+    if (!selectedQuizId && quizzes[0]?.id) setSelectedQuizId(quizzes[0].id)
+  }, [selectedQuizId, quizzes])
 
   const selectedQuiz = quizzes.find((quiz) => quiz.id === selectedQuizId) || null
   const existingAttempt = attempts.find((attempt) => attempt.quizId === selectedQuizId) || null
-
-  useEffect(() => {
-    if (!selectedQuizId && (availableQuiz?.id || quizzes[0]?.id)) {
-      setSelectedQuizId(availableQuiz?.id || quizzes[0]?.id)
-    }
-  }, [selectedQuizId, availableQuiz, quizzes])
+  const quizStatus = selectedQuiz ? getQuizStatus(selectedQuiz, now) : "inactive"
+  const canTake = selectedQuiz && !existingAttempt && quizStatus === "active"
 
   useEffect(() => {
     if (!selectedQuiz) return
     const attempt = attempts.find((a) => a.quizId === selectedQuiz.id)
     setQuestionIndex(0)
-    setAnswers(attempt?.answers || {})
+    setAnswers(attempt?.answers ? { ...attempt.answers } : {})
     setResult(attempt || null)
     setSubmitted(Boolean(attempt))
+    setSessionReady(false)
+    autoSubmittedRef.current = false
     setTimeLeft((selectedQuiz.timeLimit || 0) * 60)
+    if (!attempt && getQuizStatus(selectedQuiz, new Date()) === "active") {
+      setSessionReady(true)
+    }
   }, [selectedQuizId, selectedQuiz, attempts])
 
   useEffect(() => {
-    if (!selectedQuiz || submitted || existingAttempt) return
+    if (!selectedQuiz || submitted || existingAttempt || !sessionReady || quizStatus !== "active") return
     if (timeLeft <= 0) return
     const interval = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval)
-          return 0
-        }
-        return prev - 1
-      })
+      setTimeLeft((prev) => (prev <= 1 ? 0 : prev - 1))
     }, 1000)
     return () => clearInterval(interval)
-  }, [selectedQuiz, submitted, existingAttempt, timeLeft])
+  }, [selectedQuiz, submitted, existingAttempt, sessionReady, quizStatus, timeLeft])
 
   const currentQuestion = selectedQuiz?.questions?.[questionIndex]
 
   const handleSelect = (questionId, optionIndex) => {
-    if (submitted || existingAttempt) return
+    if (submitted || existingAttempt || quizStatus !== "active") return
     setAnswers((prev) => ({ ...prev, [questionId]: optionIndex }))
   }
 
@@ -95,20 +113,24 @@ export const QuizInterface = () => {
     }
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = (auto = false) => {
     if (!selectedQuiz || submitted || existingAttempt) return
+    if (!auto && quizStatus !== "active") return
+    if (auto && autoSubmittedRef.current) return
+    if (auto) autoSubmittedRef.current = true
     const res = calculateResult()
     submitQuizAttempt(res)
     setResult(res)
     setSubmitted(true)
+    setSessionReady(false)
   }
 
   useEffect(() => {
-    if (!submitted && !existingAttempt && selectedQuiz && timeLeft === 0 && selectedQuiz.timeLimit > 0) {
-      handleSubmit()
+    if (!submitted && !existingAttempt && selectedQuiz && sessionReady && quizStatus === "active" && timeLeft === 0) {
+      handleSubmit(true)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeLeft])
+  }, [timeLeft, sessionReady, quizStatus])
 
   const wrongQuestions = useMemo(() => {
     if (!selectedQuiz || !result) return []
@@ -148,6 +170,7 @@ export const QuizInterface = () => {
               {quizzes.map((quiz) => {
                 const attempt = attempts.find((a) => a.quizId === quiz.id)
                 const active = quiz.id === selectedQuizId
+                const status = getQuizStatus(quiz, now)
                 return (
                   <button
                     key={quiz.id}
@@ -162,11 +185,14 @@ export const QuizInterface = () => {
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium">{quiz.title}</p>
                         <p className="mt-1 text-xs text-muted-foreground">{quiz.questions.length} questions · {quiz.timeLimit} min</p>
+                        <p className="mt-1 text-[11px] text-slate-500">
+                          {status === "upcoming" ? `Starts: ${formatDateTime(quiz.startTime)}` : status === "ended" ? `Ended: ${formatDateTime(quiz.endTime)}` : `Ends: ${formatDateTime(quiz.endTime)}`}
+                        </p>
                       </div>
                       {attempt ? (
                         <Badge variant="secondary">{attempt.percentage}%</Badge>
                       ) : (
-                        <Badge>New</Badge>
+                        <Badge variant={status === "active" ? "default" : "secondary"} className="capitalize">{status}</Badge>
                       )}
                     </div>
                   </button>
@@ -182,14 +208,19 @@ export const QuizInterface = () => {
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="text-xl font-semibold tracking-tight">{selectedQuiz.title}</h2>
-                      <Badge variant={result ? "secondary" : "default"}>{result ? "Completed" : "In progress"}</Badge>
+                      <Badge variant={result ? "secondary" : canTake ? "default" : "secondary"} className="capitalize">
+                        {result ? "Completed" : quizStatus}
+                      </Badge>
                     </div>
-                    <p className="mt-1 text-sm text-muted-foreground">{selectedQuiz.description}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{selectedQuiz.description || "No description provided."}</p>
+                    <p className="mt-2 text-xs text-slate-500">
+                      Starts: {formatDateTime(selectedQuiz.startTime)} · Ends: {formatDateTime(selectedQuiz.endTime)}
+                    </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium dark:border-slate-800 dark:bg-slate-900">
                       <Clock3 className="h-4 w-4 text-blue-600" />
-                      {result ? "Finished" : formatTime(timeLeft)}
+                      {result ? "Finished" : canTake ? formatTime(timeLeft) : `${selectedQuiz.timeLimit} min`}
                     </div>
                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
                       {answeredCount}/{selectedQuiz.questions.length} answered
@@ -199,85 +230,99 @@ export const QuizInterface = () => {
 
                 <div className="p-6">
                   {!result ? (
-                    <>
-                      <div className="mb-6">
-                        <div className="mb-2 flex items-center justify-between text-sm">
-                          <span className="font-medium text-slate-700 dark:text-slate-200">Question {questionIndex + 1} of {selectedQuiz.questions.length}</span>
-                          <span className="text-muted-foreground">{progress}% complete</span>
+                    !canTake ? (
+                      <div className="space-y-4">
+                        <div className={`rounded-2xl border p-5 ${quizStatus === "upcoming" ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/50 dark:bg-amber-500/10 dark:text-amber-200" : quizStatus === "ended" ? "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200" : "border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-900/50 dark:bg-blue-500/10 dark:text-blue-200"}`}>
+                          <p className="font-medium capitalize">{quizStatus === "active" ? "Quiz not available" : `Quiz ${quizStatus}`}</p>
+                          <p className="mt-1 text-sm opacity-90">
+                            {quizStatus === "upcoming" && `This quiz will start at ${formatDateTime(selectedQuiz.startTime)}.`}
+                            {quizStatus === "ended" && `This quiz ended at ${formatDateTime(selectedQuiz.endTime)}.`}
+                            {quizStatus === "inactive" && "This quiz is currently inactive."}
+                          </p>
                         </div>
-                        <div className="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                          <div className="h-full rounded-full bg-blue-600 transition-all" style={{ width: `${((questionIndex + 1) / selectedQuiz.questions.length) * 100}%` }} />
+                        <div className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+                          <p className="text-sm font-medium">Schedule</p>
+                          <p className="mt-1 text-sm text-muted-foreground">Start: {formatDateTime(selectedQuiz.startTime)}</p>
+                          <p className="text-sm text-muted-foreground">End: {formatDateTime(selectedQuiz.endTime)}</p>
+                          <p className="mt-2 text-xs text-slate-500">You can take the quiz only during the scheduled window.</p>
                         </div>
                       </div>
-
-                      {currentQuestion && (
-                        <div className="space-y-4">
-                          <h3 className="text-lg font-medium leading-relaxed">{currentQuestion.question}</h3>
-                          <div className="grid gap-3">
-                            {currentQuestion.options.map((option, idx) => {
-                              const selected = answers[currentQuestion.id] === idx
-                              return (
-                                <button
-                                  key={idx}
-                                  type="button"
-                                  onClick={() => handleSelect(currentQuestion.id, idx)}
-                                  className={`flex items-center gap-3 rounded-xl border p-4 text-left transition ${
-                                    selected
-                                      ? "border-blue-600 bg-blue-50 ring-1 ring-blue-600/20 dark:border-blue-500 dark:bg-blue-500/10"
-                                      : "border-slate-200 hover:border-blue-300 hover:bg-slate-50 dark:border-slate-800 dark:hover:border-blue-900 dark:hover:bg-slate-900"
-                                  }`}
-                                >
-                                  <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-semibold ${selected ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"}`}>
-                                    {String.fromCharCode(65 + idx)}
-                                  </span>
-                                  <span className="text-sm sm:text-base">{option}</span>
-                                </button>
-                              )
-                            })}
+                    ) : (
+                      <>
+                        <div className="mb-6">
+                          <div className="mb-2 flex items-center justify-between text-sm">
+                            <span className="font-medium text-slate-700 dark:text-slate-200">Question {questionIndex + 1} of {selectedQuiz.questions.length}</span>
+                            <span className="text-muted-foreground">{progress}% complete</span>
+                          </div>
+                          <div className="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                            <div className="h-full rounded-full bg-blue-600 transition-all" style={{ width: `${((questionIndex + 1) / selectedQuiz.questions.length) * 100}%` }} />
                           </div>
                         </div>
-                      )}
 
-                      <div className="mt-8 flex flex-col gap-3 border-t border-slate-100 pt-6 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
-                        <Button
-                          variant="outline"
-                          onClick={() => setQuestionIndex((i) => Math.max(0, i - 1))}
-                          disabled={questionIndex === 0}
-                          className="gap-2"
-                        >
-                          <ChevronLeft className="h-4 w-4" /> Previous
-                        </Button>
-
-                        <div className="flex flex-wrap gap-2">
-                          {selectedQuiz.questions.map((q, idx) => (
-                            <button
-                              key={q.id}
-                              type="button"
-                              onClick={() => setQuestionIndex(idx)}
-                              className={`h-9 w-9 rounded-lg border text-sm font-medium transition ${
-                                idx === questionIndex
-                                  ? "border-blue-600 bg-blue-600 text-white"
-                                  : answers[q.id] !== undefined
-                                  ? "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-500/10 dark:text-blue-300"
-                                  : "border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-900"
-                              }`}
-                            >
-                              {idx + 1}
-                            </button>
-                          ))}
-                        </div>
-
-                        {questionIndex < selectedQuiz.questions.length - 1 ? (
-                          <Button onClick={() => setQuestionIndex((i) => Math.min(selectedQuiz.questions.length - 1, i + 1))} className="gap-2">
-                            Next <ChevronRight className="h-4 w-4" />
-                          </Button>
-                        ) : (
-                          <Button onClick={handleSubmit} className="gap-2">
-                            <Send className="h-4 w-4" /> Submit quiz
-                          </Button>
+                        {currentQuestion && (
+                          <div className="space-y-4">
+                            <h3 className="text-lg font-medium leading-relaxed">{currentQuestion.question}</h3>
+                            <div className="grid gap-3">
+                              {currentQuestion.options.map((option, idx) => {
+                                const selected = answers[currentQuestion.id] === idx
+                                return (
+                                  <button
+                                    key={idx}
+                                    type="button"
+                                    onClick={() => handleSelect(currentQuestion.id, idx)}
+                                    className={`flex items-center gap-3 rounded-xl border p-4 text-left transition ${
+                                      selected
+                                        ? "border-blue-600 bg-blue-50 ring-1 ring-blue-600/20 dark:border-blue-500 dark:bg-blue-500/10"
+                                        : "border-slate-200 hover:border-blue-300 hover:bg-slate-50 dark:border-slate-800 dark:hover:border-blue-900 dark:hover:bg-slate-900"
+                                    }`}
+                                  >
+                                    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-semibold ${selected ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"}`}>
+                                      {String.fromCharCode(65 + idx)}
+                                    </span>
+                                    <span className="text-sm sm:text-base">{option}</span>
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
                         )}
-                      </div>
-                    </>
+
+                        <div className="mt-8 flex flex-col gap-3 border-t border-slate-100 pt-6 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+                          <Button variant="outline" onClick={() => setQuestionIndex((i) => Math.max(0, i - 1))} disabled={questionIndex === 0} className="gap-2">
+                            <ChevronLeft className="h-4 w-4" /> Previous
+                          </Button>
+
+                          <div className="flex flex-wrap gap-2">
+                            {selectedQuiz.questions.map((q, idx) => (
+                              <button
+                                key={q.id}
+                                type="button"
+                                onClick={() => setQuestionIndex(idx)}
+                                className={`h-9 w-9 rounded-lg border text-sm font-medium transition ${
+                                  idx === questionIndex
+                                    ? "border-blue-600 bg-blue-600 text-white"
+                                    : answers[q.id] !== undefined
+                                    ? "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-500/10 dark:text-blue-300"
+                                    : "border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-900"
+                                }`}
+                              >
+                                {idx + 1}
+                              </button>
+                            ))}
+                          </div>
+
+                          {questionIndex < selectedQuiz.questions.length - 1 ? (
+                            <Button onClick={() => setQuestionIndex((i) => Math.min(selectedQuiz.questions.length - 1, i + 1))} className="gap-2">
+                              Next <ChevronRight className="h-4 w-4" />
+                            </Button>
+                          ) : (
+                            <Button onClick={() => handleSubmit(false)} className="gap-2">
+                              <Send className="h-4 w-4" /> Submit quiz
+                            </Button>
+                          )}
+                        </div>
+                      </>
+                    )
                   ) : (
                     <div className="space-y-6">
                       <div className="grid gap-4 sm:grid-cols-3">

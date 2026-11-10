@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { CheckCircle2, Clock3, Plus, Trash2 } from "lucide-react"
+import { CalendarClock, CheckCircle2, Clock3, Plus, Trash2 } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { useQuiz } from "@/lib/quiz-context"
 import { Badge } from "@/components/ui/badge"
@@ -28,6 +28,8 @@ export const QuizCreator = () => {
     description: "",
     batchId: user?.batchId || "batch1",
     timeLimit: 30,
+    startTime: "",
+    endTime: "",
   })
   const [questions, setQuestions] = useState([emptyQuestion()])
   const [success, setSuccess] = useState("")
@@ -56,12 +58,15 @@ export const QuizCreator = () => {
   const removeQuestion = (idx) => setQuestions((prev) => (prev.length === 1 ? prev : prev.filter((_, i) => i !== idx)))
 
   const resetForm = () => {
-    setFormData({ title: "", description: "", batchId: user?.batchId || "batch1", timeLimit: 30 })
+    setFormData({ title: "", description: "", batchId: user?.batchId || "batch1", timeLimit: 30, startTime: "", endTime: "" })
     setQuestions([emptyQuestion()])
   }
 
   const isValid =
     formData.title.trim() &&
+    formData.startTime &&
+    formData.endTime &&
+    new Date(formData.endTime) > new Date(formData.startTime) &&
     questions.length > 0 &&
     questions.every((q) => q.question.trim() && q.options.every((o) => o.trim()))
 
@@ -73,6 +78,8 @@ export const QuizCreator = () => {
       teacherId: user?.id,
       teacherName: user?.name,
       timeLimit: Number(formData.timeLimit) || 30,
+      startTime: new Date(formData.startTime).toISOString(),
+      endTime: new Date(formData.endTime).toISOString(),
       isActive: true,
       isApproved: true,
       maxAttempts: 1,
@@ -85,7 +92,7 @@ export const QuizCreator = () => {
         points: Number(q.points) || 1,
       })),
     })
-    setSuccess("Quiz created successfully.")
+    setSuccess("Quiz created and scheduled successfully.")
     resetForm()
     setTimeout(() => setSuccess(""), 3000)
   }
@@ -96,7 +103,7 @@ export const QuizCreator = () => {
         <section className="rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-950/80 sm:p-8">
           <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Teacher tools</p>
           <h2 className="mt-1 text-3xl font-semibold tracking-tight">Create a quiz</h2>
-          <p className="mt-2 text-sm text-muted-foreground">Build timed quizzes, set correct answers, and publish to your students.</p>
+          <p className="mt-2 text-sm text-muted-foreground">Build timed quizzes, set correct answers, schedule start/end times, and publish to your students.</p>
         </section>
 
         <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
@@ -120,6 +127,17 @@ export const QuizCreator = () => {
                   <label className="mb-1.5 block text-sm font-medium">Time limit (minutes)</label>
                   <Input type="number" min={1} value={formData.timeLimit} onChange={(e) => setFormData({ ...formData, timeLimit: e.target.value })} />
                 </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium">Start date & time</label>
+                  <Input type="datetime-local" value={formData.startTime} onChange={(e) => setFormData({ ...formData, startTime: e.target.value })} required />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium">End date & time</label>
+                  <Input type="datetime-local" value={formData.endTime} onChange={(e) => setFormData({ ...formData, endTime: e.target.value })} required />
+                </div>
+                {formData.startTime && formData.endTime && new Date(formData.endTime) <= new Date(formData.startTime) && (
+                  <p className="sm:col-span-2 text-sm text-rose-600">End time must be after start time.</p>
+                )}
               </div>
             </Card>
 
@@ -184,9 +202,15 @@ export const QuizCreator = () => {
                 <PreviewRow label="Batch" value={formData.batchId || "—"} />
                 <PreviewRow label="Questions" value={questions.length} />
                 <PreviewRow label="Total points" value={totalPoints} />
+                <PreviewRow label="Starts" value={formData.startTime ? new Date(formData.startTime).toLocaleString() : "—"} />
+                <PreviewRow label="Ends" value={formData.endTime ? new Date(formData.endTime).toLocaleString() : "—"} />
                 <div className="flex items-center justify-between rounded-xl border border-slate-100 px-4 py-3 dark:border-slate-800">
                   <span className="text-slate-500">Time limit</span>
                   <span className="inline-flex items-center gap-1.5 font-medium"><Clock3 className="h-4 w-4 text-blue-600" /> {formData.timeLimit} min</span>
+                </div>
+                <div className="rounded-xl border border-blue-100 bg-blue-50/50 px-4 py-3 text-xs text-blue-800 dark:border-blue-900/40 dark:bg-blue-500/10 dark:text-blue-200">
+                  <span className="inline-flex items-center gap-1.5 font-medium"><CalendarClock className="h-3.5 w-3.5" /> Scheduling</span>
+                  <p className="mt-1 opacity-90">Students can only take the quiz between the start and end times.</p>
                 </div>
               </div>
             </Card>

@@ -71,26 +71,13 @@ export function QuizProvider({ children }) {
       quizId: "quiz1",
       studentId: "3",
       studentName: "Jane Student",
-      answers: [0, 1],
+      answers: { q1: 0, q2: 1 },
       score: 20,
       totalPoints: 20,
       percentage: 100,
-      timeSpent: 1200, // 20 minutes
+      timeSpent: 1200,
       submittedAt: "2024-01-20T09:25:00",
       isApproved: true,
-    },
-    {
-      id: "attempt2",
-      quizId: "quiz1",
-      studentId: "4",
-      studentName: "Bob Student",
-      answers: [0, 0],
-      score: 10,
-      totalPoints: 20,
-      percentage: 50,
-      timeSpent: 1500, // 25 minutes
-      submittedAt: "2024-01-20T09:30:00",
-      isApproved: false,
     },
   ])
 
