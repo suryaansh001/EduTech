@@ -31,12 +31,12 @@ function AppContent() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
-        <div className="text-center space-y-4">
-          <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto animate-pulse">
-            <div className="w-8 h-8 bg-white rounded-lg"></div>
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-white to-blue-50 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900">
+        <div className="space-y-4 text-center">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 shadow-lg shadow-blue-600/20">
+            <div className="h-7 w-7 animate-pulse rounded-lg bg-white/90" />
           </div>
-          <p className="text-gray-600 dark:text-gray-400">Loading...</p>
+          <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Loading your workspace...</p>
         </div>
       </div>
     )
@@ -69,6 +69,21 @@ function AppContent() {
     return titles[activeItem] || 'Dashboard'
   }
 
+  const Placeholder = ({ title, description }) => (
+    <ContentWrapper>
+      <div className="mx-auto max-w-3xl rounded-3xl border border-slate-200/80 bg-white/90 p-8 text-center shadow-sm dark:border-slate-800 dark:bg-slate-950/80 sm:p-12">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
+          <span className="text-xl font-semibold">•</span>
+        </div>
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white sm:text-3xl">{title}</h1>
+        <p className="mt-3 text-sm leading-6 text-slate-500 sm:text-base">{description}</p>
+        <div className="mt-6 inline-flex rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-medium text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+          Coming soon
+        </div>
+      </div>
+    </ContentWrapper>
+  )
+
   const renderContent = () => {
     if (user.role === "admin") {
       switch (activeItem) {
@@ -77,68 +92,19 @@ function AppContent() {
         case "students":
           return <StudentsManagement />
         case "teachers":
-          return (
-            <ContentWrapper>
-              <div className="text-center py-12">
-                <h1 className="text-2xl font-bold mb-4">Teachers Management</h1>
-                <p className="text-gray-600 dark:text-gray-400">Teachers management functionality coming soon...</p>
-              </div>
-            </ContentWrapper>
-          )
+          return <Placeholder title="Teachers Management" description="Add, review, and manage teacher accounts from this workspace." />
         case "batches":
-          return (
-            <ContentWrapper>
-              <div className="text-center py-12">
-                <h1 className="text-2xl font-bold mb-4">Batches Management</h1>
-                <p className="text-gray-600 dark:text-gray-400">Batches management functionality coming soon...</p>
-              </div>
-            </ContentWrapper>
-          )
+          return <Placeholder title="Batches Management" description="Organize student batches and keep cohorts structured." />
         case "classes":
-          return (
-            <ContentWrapper>
-              <div className="text-center py-12">
-                <h1 className="text-2xl font-bold mb-4">Classes Management</h1>
-                <p className="text-gray-600 dark:text-gray-400">Classes management functionality coming soon...</p>
-              </div>
-            </ContentWrapper>
-          )
+          return <Placeholder title="Classes Management" description="Create and monitor classes across your institution." />
         case "schedule":
-          return (
-            <ContentWrapper>
-              <div className="text-center py-12">
-                <h1 className="text-2xl font-bold mb-4">Schedule Management</h1>
-                <p className="text-gray-600 dark:text-gray-400">Schedule management functionality coming soon...</p>
-              </div>
-            </ContentWrapper>
-          )
+          return <Placeholder title="Schedule Management" description="Plan and track academic schedules in one place." />
         case "notifications":
-          return (
-            <ContentWrapper>
-              <div className="text-center py-12">
-                <h1 className="text-2xl font-bold mb-4">Notifications</h1>
-                <p className="text-gray-600 dark:text-gray-400">Notifications management functionality coming soon...</p>
-              </div>
-            </ContentWrapper>
-          )
+          return <Placeholder title="Notifications" description="Stay informed with announcements and important updates." />
         case "analytics":
-          return (
-            <ContentWrapper>
-              <div className="text-center py-12">
-                <h1 className="text-2xl font-bold mb-4">Analytics Dashboard</h1>
-                <p className="text-gray-600 dark:text-gray-400">Analytics dashboard functionality coming soon...</p>
-              </div>
-            </ContentWrapper>
-          )
+          return <Placeholder title="Analytics Dashboard" description="Insights and performance analytics will appear here." />
         case "settings":
-          return (
-            <ContentWrapper>
-              <div className="text-center py-12">
-                <h1 className="text-2xl font-bold mb-4">Settings</h1>
-                <p className="text-gray-600 dark:text-gray-400">Settings functionality coming soon...</p>
-              </div>
-            </ContentWrapper>
-          )
+          return <Placeholder title="Settings" description="Configure platform preferences and administrative options." />
         case "quizzes":
           return <QuizManagement />
         default:
@@ -150,50 +116,15 @@ function AppContent() {
         case "batch-select":
           return <TeacherDashboard />
         case "schedule":
-          return (
-            <ContentWrapper>
-              <div className="text-center py-12">
-                <h1 className="text-2xl font-bold mb-4">My Schedule</h1>
-                <p className="text-gray-600 dark:text-gray-400">Schedule functionality coming soon...</p>
-              </div>
-            </ContentWrapper>
-          )
+          return <Placeholder title="My Schedule" description="Your upcoming classes and teaching schedule will be shown here." />
         case "upload-notes":
-          return (
-            <ContentWrapper>
-              <div className="text-center py-12">
-                <h1 className="text-2xl font-bold mb-4">Upload Notes</h1>
-                <p className="text-gray-600 dark:text-gray-400">Upload notes functionality coming soon...</p>
-              </div>
-            </ContentWrapper>
-          )
+          return <Placeholder title="Upload Notes" description="Share study materials and class notes with your students." />
         case "students":
-          return (
-            <ContentWrapper>
-              <div className="text-center py-12">
-                <h1 className="text-2xl font-bold mb-4">My Students</h1>
-                <p className="text-gray-600 dark:text-gray-400">Students management functionality coming soon...</p>
-              </div>
-            </ContentWrapper>
-          )
+          return <Placeholder title="My Students" description="View and manage the students in your classes." />
         case "notifications":
-          return (
-            <ContentWrapper>
-              <div className="text-center py-12">
-                <h1 className="text-2xl font-bold mb-4">Notifications</h1>
-                <p className="text-gray-600 dark:text-gray-400">Notifications functionality coming soon...</p>
-              </div>
-            </ContentWrapper>
-          )
+          return <Placeholder title="Notifications" description="Important alerts and updates for teachers will appear here." />
         case "recordings":
-          return (
-            <ContentWrapper>
-              <div className="text-center py-12">
-                <h1 className="text-2xl font-bold mb-4">Class Recordings</h1>
-                <p className="text-gray-600 dark:text-gray-400">Recordings functionality coming soon...</p>
-              </div>
-            </ContentWrapper>
-          )
+          return <Placeholder title="Class Recordings" description="Access and manage recorded class sessions." />
         case "chat":
           return <ChatContainer />
         case "quizzes":
@@ -206,36 +137,15 @@ function AppContent() {
         case "dashboard":
           return <StudentDashboard />
         case "schedule":
-          return (
-            <ContentWrapper>
-              <div className="text-center py-12">
-                <h1 className="text-2xl font-bold mb-4">Class Schedule</h1>
-                <p className="text-gray-600 dark:text-gray-400">Schedule functionality coming soon...</p>
-              </div>
-            </ContentWrapper>
-          )
+          return <Placeholder title="Class Schedule" description="Your upcoming classes and timetable will appear here." />
         case "notes":
           return <NotesViewer />
         case "recordings":
-          return (
-            <ContentWrapper>
-              <div className="text-center py-12">
-                <h1 className="text-2xl font-bold mb-4">Class Recordings</h1>
-                <p className="text-gray-600 dark:text-gray-400">Recordings functionality coming soon...</p>
-              </div>
-            </ContentWrapper>
-          )
+          return <Placeholder title="Class Recordings" description="Watch and review your class recordings here." />
         case "chat":
           return <ChatContainer />
         case "notifications":
-          return (
-            <ContentWrapper>
-              <div className="text-center py-12">
-                <h1 className="text-2xl font-bold mb-4">Notifications</h1>
-                <p className="text-gray-600 dark:text-gray-400">Notifications functionality coming soon...</p>
-              </div>
-            </ContentWrapper>
-          )
+          return <Placeholder title="Notifications" description="Stay updated with announcements and reminders." />
         case "quizzes":
           return <QuizInterface />
         default:
@@ -265,6 +175,7 @@ function AppContent() {
           title={getPageTitle()}
           subtitle={`Welcome back, ${user.name}`}
           onMenuClick={() => setIsMobileSidebarOpen(true)}
+          onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         />
       }
       isSidebarCollapsed={isSidebarCollapsed}

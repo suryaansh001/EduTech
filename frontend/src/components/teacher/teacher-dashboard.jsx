@@ -16,9 +16,9 @@ export const TeacherDashboard = () => {
   const submissions = quizzes.reduce((total, quiz) => total + getAttemptsByQuiz(quiz.id).length, 0)
 
   return (
-    <main className="min-h-full bg-slate-50/70 px-4 py-6 dark:bg-slate-950/40 sm:px-6 lg:px-8">
+    <main className="min-h-full bg-transparent px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl space-y-6">
-        <section className="flex flex-col justify-between gap-5 rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-950 sm:flex-row sm:items-center sm:p-8">
+        <section className="flex flex-col justify-between gap-5 rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-950/80 sm:flex-row sm:items-center sm:p-8">
           <div>
             <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Teacher workspace</p>
             <h2 className="mt-1 text-3xl font-semibold tracking-tight">Welcome back, {user?.name?.split(" ")[0] || "Teacher"}.</h2>
@@ -38,7 +38,7 @@ export const TeacherDashboard = () => {
         </section>
 
         <section className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
-          <Card className="border-slate-200/80 shadow-sm dark:border-slate-800">
+          <Card className="border-slate-200/80 bg-white/90 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
             <div className="flex items-center justify-between border-b border-slate-100 p-6 dark:border-slate-800">
               <div>
                 <h3 className="text-xl font-semibold tracking-tight">Your quizzes</h3>
@@ -54,7 +54,7 @@ export const TeacherDashboard = () => {
                   No quizzes yet. Create your first assessment to get started.
                 </p>
               ) : quizzes.slice(0, 4).map((quiz) => (
-                <div key={quiz.id} className="flex items-center gap-4 rounded-2xl border border-slate-100 p-4 dark:border-slate-800">
+                <div key={quiz.id} className="flex items-center gap-4 rounded-2xl border border-slate-100 p-4 transition hover:border-blue-200 dark:border-slate-800 dark:hover:border-blue-900">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
                     <BookOpen className="h-4 w-4" />
                   </div>
@@ -68,7 +68,7 @@ export const TeacherDashboard = () => {
             </div>
           </Card>
 
-          <Card className="border-slate-200/80 shadow-sm dark:border-slate-800">
+          <Card className="border-slate-200/80 bg-white/90 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
             <div className="border-b border-slate-100 p-6 dark:border-slate-800">
               <h3 className="text-xl font-semibold tracking-tight">Quick access</h3>
               <p className="mt-1 text-sm text-muted-foreground">Common teaching tasks.</p>
@@ -87,7 +87,7 @@ export const TeacherDashboard = () => {
 
 function StatCard({ icon: Icon, label, value }) {
   return (
-    <Card className="border-slate-200/80 p-5 shadow-sm dark:border-slate-800">
+    <Card className="border-slate-200/80 bg-white/90 p-5 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm text-muted-foreground">{label}</p>
