@@ -36,8 +36,8 @@ const getQuizStatus = (quiz, now = new Date()) => {
 export const QuizInterface = () => {
   const { user } = useAuth()
   const { getQuizzesByBatch, getAttemptsByStudent, submitQuizAttempt } = useQuiz()
-  const quizzes = getQuizzesByBatch(user?.batchId)
-  const attempts = getAttemptsByStudent(user?.id)
+  const quizzes = useMemo(() => getQuizzesByBatch(user?.batchId), [getQuizzesByBatch, user?.batchId])
+  const attempts = useMemo(() => getAttemptsByStudent(user?.id), [getAttemptsByStudent, user?.id])
 
   const [selectedQuizId, setSelectedQuizId] = useState(null)
   const [questionIndex, setQuestionIndex] = useState(0)
@@ -61,15 +61,21 @@ export const QuizInterface = () => {
   const selectedQuiz = quizzes.find((quiz) => quiz.id === selectedQuizId) || null
   const existingAttempt = attempts.find((attempt) => attempt.quizId === selectedQuizId) || null
   const quizStatus = selectedQuiz ? getQuizStatus(selectedQuiz, now) : "inactive"
-  const canTake = selectedQuiz && !existingAttempt && quizStatus === "active" && sessionReady
-  const canStart = selectedQuiz && !existingAttempt && quizStatus === "active" && !sessionReady
+  const isOpen = quizStatus === "active"
+  const canTake = selectedQuiz && !existingAttempt && isOpen && sessionReady
+  const canStart = selectedQuiz && !existingAttempt && isOpen && !sessionReady
 
   const startQuiz = () => {
-    if (!selectedQuiz || existingAttempt || quizStatus !== "active") return
+    if (!selectedQuiz || existingAttempt) return
+    const status = getQuizStatus(selectedQuiz, new Date())
+    if (status !== "active") return
     setAnswers({})
     setQuestionIndex(0)
-    setTimeLeft((selectedQuiz.timeLimit || 0) * 60)
+    setTimeLeft(Math.max(1, Number(selectedQuiz.timeLimit) || 30) * 60)
     setSessionReady(true)
+    setSubmitted(false)
+    setResult(null)
+    autoSubmittedRef.current = false
   }
 
   useEffect(() => {
@@ -82,7 +88,7 @@ export const QuizInterface = () => {
     setSessionReady(false)
     autoSubmittedRef.current = false
     setTimeLeft((selectedQuiz.timeLimit || 0) * 60)
-  }, [selectedQuizId, selectedQuiz, attempts])
+  }, [selectedQuizId, existingAttempt?.id])
 
   useEffect(() => {
     if (!selectedQuiz || submitted || existingAttempt || !sessionReady || quizStatus !== "active") return
@@ -91,7 +97,7 @@ export const QuizInterface = () => {
       setTimeLeft((prev) => (prev <= 1 ? 0 : prev - 1))
     }, 1000)
     return () => clearInterval(interval)
-  }, [selectedQuiz, submitted, existingAttempt, sessionReady, quizStatus, timeLeft])
+  }, [selectedQuiz?.id, submitted, existingAttempt?.id, sessionReady, quizStatus, timeLeft])
 
   const currentQuestion = selectedQuiz?.questions?.[questionIndex]
 
@@ -243,21 +249,21 @@ export const QuizInterface = () => {
                       <div className="space-y-4">
                         <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-blue-900 dark:border-blue-900/50 dark:bg-blue-500/10 dark:text-blue-200">
                           <p className="font-medium">Ready to start</p>
-                          <p className="mt-1 text-sm opacity-90">This quiz is open. You have {selectedQuiz.timeLimit} minutes once you begin.</p>
+                          <p className="mt-1 text-sm opacity-90">This quiz is open. You have {selectedQuiz.timeLimit} minutes once you begin. Click below to start answering.</p>
                         </div>
                         <div className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
                           <p className="text-sm font-medium">Schedule</p>
                           <p className="mt-1 text-sm text-muted-foreground">Start: {formatDateTime(selectedQuiz.startTime)}</p>
                           <p className="text-sm text-muted-foreground">End: {formatDateTime(selectedQuiz.endTime)}</p>
                         </div>
-                        <Button onClick={startQuiz} className="gap-2">
+                        <Button type="button" onClick={startQuiz} className="gap-2">
                           <Clock3 className="h-4 w-4" /> Start quiz
                         </Button>
                       </div>
                     ) : !canTake ? (
                       <div className="space-y-4">
                         <div className={`rounded-2xl border p-5 ${quizStatus === "upcoming" ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/50 dark:bg-amber-500/10 dark:text-amber-200" : quizStatus === "ended" ? "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200" : "border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-900/50 dark:bg-blue-500/10 dark:text-blue-200"}`}>
-                          <p className="font-medium capitalize">{quizStatus === "active" ? "Quiz not available" : `Quiz ${quizStatus}`}</p>
+                          <p className="font-medium capitalize">Quiz {quizStatus}</p>
                           <p className="mt-1 text-sm opacity-90">
                             {quizStatus === "upcoming" && `This quiz will start at ${formatDateTime(selectedQuiz.startTime)}.`}
                             {quizStatus === "ended" && `This quiz ended at ${formatDateTime(selectedQuiz.endTime)}.`}
@@ -267,7 +273,7 @@ export const QuizInterface = () => {
                         <div className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
                           <p className="text-sm font-medium">Schedule</p>
                           <p className="mt-1 text-sm text-muted-foreground">Start: {formatDateTime(selectedQuiz.startTime)}</p>
-                          <p className="text-sm text-muted-foreground">End: {formatDateTime(selectedQuiz.endTime)}</p>
+                          <p className="mt-1 text-sm text-muted-foreground">End: {formatDateTime(selectedQuiz.endTime)}</p>
                           <p className="mt-2 text-xs text-slate-500">You can take the quiz only during the scheduled window.</p>
                         </div>
                       </div>
