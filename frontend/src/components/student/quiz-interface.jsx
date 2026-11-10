@@ -204,11 +204,12 @@ export const QuizInterface = () => {
                           {status === "upcoming" ? `Starts: ${formatDateTime(quiz.startTime)}` : status === "ended" ? `Ended: ${formatDateTime(quiz.endTime)}` : `Ends: ${formatDateTime(quiz.endTime)}`}
                         </p>
                       </div>
-                      {attempt ? (
-                        <Badge variant="secondary">{attempt.percentage}%</Badge>
-                      ) : (
-                        <Badge variant={status === "active" ? "default" : "secondary"} className="capitalize">{status}</Badge>
-                      )}
+                      <div className="flex flex-col items-end gap-1">
+                        {attempt ? <Badge variant="secondary">{attempt.percentage}%</Badge> : null}
+                        <Badge variant={attempt ? "outline" : status === "active" ? "default" : "secondary"} className="capitalize">
+                          {attempt ? "Attempted" : status}
+                        </Badge>
+                      </div>
                     </div>
                   </button>
                 )
@@ -226,6 +227,7 @@ export const QuizInterface = () => {
                       <Badge variant={result ? "secondary" : canTake ? "default" : "secondary"} className="capitalize">
                         {result ? "Completed" : quizStatus}
                       </Badge>
+                      {existingAttempt && <Badge variant="outline">Attempted</Badge>}
                     </div>
                     <p className="mt-1 text-sm text-muted-foreground">{selectedQuiz.description || "No description provided."}</p>
                     <p className="mt-2 text-xs text-slate-500">
