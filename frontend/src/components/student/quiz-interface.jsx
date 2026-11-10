@@ -25,8 +25,11 @@ const getQuizStatus = (quiz, now = new Date()) => {
   if (!quiz?.isActive) return "inactive"
   const start = quiz.startTime ? new Date(quiz.startTime) : null
   const end = quiz.endTime ? new Date(quiz.endTime) : null
-  if (start && !Number.isNaN(start.getTime()) && now < start) return "upcoming"
-  if (end && !Number.isNaN(end.getTime()) && now > end) return "ended"
+  const hasStart = start && !Number.isNaN(start.getTime())
+  const hasEnd = end && !Number.isNaN(end.getTime())
+  if (!hasStart && !hasEnd) return "active"
+  if (hasStart && now < start) return "upcoming"
+  if (hasEnd && now > end) return "ended"
   return "active"
 }
 
@@ -58,7 +61,16 @@ export const QuizInterface = () => {
   const selectedQuiz = quizzes.find((quiz) => quiz.id === selectedQuizId) || null
   const existingAttempt = attempts.find((attempt) => attempt.quizId === selectedQuizId) || null
   const quizStatus = selectedQuiz ? getQuizStatus(selectedQuiz, now) : "inactive"
-  const canTake = selectedQuiz && !existingAttempt && quizStatus === "active"
+  const canTake = selectedQuiz && !existingAttempt && quizStatus === "active" && sessionReady
+  const canStart = selectedQuiz && !existingAttempt && quizStatus === "active" && !sessionReady
+
+  const startQuiz = () => {
+    if (!selectedQuiz || existingAttempt || quizStatus !== "active") return
+    setAnswers({})
+    setQuestionIndex(0)
+    setTimeLeft((selectedQuiz.timeLimit || 0) * 60)
+    setSessionReady(true)
+  }
 
   useEffect(() => {
     if (!selectedQuiz) return
@@ -70,9 +82,6 @@ export const QuizInterface = () => {
     setSessionReady(false)
     autoSubmittedRef.current = false
     setTimeLeft((selectedQuiz.timeLimit || 0) * 60)
-    if (!attempt && getQuizStatus(selectedQuiz, new Date()) === "active") {
-      setSessionReady(true)
-    }
   }, [selectedQuizId, selectedQuiz, attempts])
 
   useEffect(() => {
@@ -230,7 +239,22 @@ export const QuizInterface = () => {
 
                 <div className="p-6">
                   {!result ? (
-                    !canTake ? (
+                    canStart ? (
+                      <div className="space-y-4">
+                        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-blue-900 dark:border-blue-900/50 dark:bg-blue-500/10 dark:text-blue-200">
+                          <p className="font-medium">Ready to start</p>
+                          <p className="mt-1 text-sm opacity-90">This quiz is open. You have {selectedQuiz.timeLimit} minutes once you begin.</p>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+                          <p className="text-sm font-medium">Schedule</p>
+                          <p className="mt-1 text-sm text-muted-foreground">Start: {formatDateTime(selectedQuiz.startTime)}</p>
+                          <p className="text-sm text-muted-foreground">End: {formatDateTime(selectedQuiz.endTime)}</p>
+                        </div>
+                        <Button onClick={startQuiz} className="gap-2">
+                          <Clock3 className="h-4 w-4" /> Start quiz
+                        </Button>
+                      </div>
+                    ) : !canTake ? (
                       <div className="space-y-4">
                         <div className={`rounded-2xl border p-5 ${quizStatus === "upcoming" ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/50 dark:bg-amber-500/10 dark:text-amber-200" : quizStatus === "ended" ? "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200" : "border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-900/50 dark:bg-blue-500/10 dark:text-blue-200"}`}>
                           <p className="font-medium capitalize">{quizStatus === "active" ? "Quiz not available" : `Quiz ${quizStatus}`}</p>
