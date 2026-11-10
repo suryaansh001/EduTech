@@ -8,6 +8,8 @@ import { DashboardHeader } from "@/components/layouts/dashboard-header"
 import { ContentWrapper } from "@/components/layouts/content-wrapper"
 import { AdminDashboard } from "@/components/admin/admin-dashboard"
 import { StudentsManagement } from "@/components/admin/students-management"
+import { TeachersManagement } from "@/components/admin/teachers-management"
+import { ClassesManagement } from "@/components/admin/classes-management"
 import { TeacherDashboard } from "@/components/teacher/teacher-dashboard"
 import { StudentDashboard } from "@/components/student/student-dashboard"
 import { NotesViewer } from "@/components/student/notes-viewer"
@@ -17,7 +19,7 @@ import { QuizManagement } from "@/components/admin/quiz-management"
 import { ChatContainer } from "@/components/chat/ChatContainer"
 
 function AppContent() {
-  const { user, isLoading } = useAuth()
+  const { user, isLoading, logout } = useAuth()
   const location = useLocation()
   const [activeItem, setActiveItem] = useState("dashboard")
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
@@ -92,11 +94,11 @@ function AppContent() {
         case "students":
           return <StudentsManagement />
         case "teachers":
-          return <Placeholder title="Teachers Management" description="Add, review, and manage teacher accounts from this workspace." />
+          return <TeachersManagement />
         case "batches":
           return <Placeholder title="Batches Management" description="Organize student batches and keep cohorts structured." />
         case "classes":
-          return <Placeholder title="Classes Management" description="Create and monitor classes across your institution." />
+          return <ClassesManagement />
         case "schedule":
           return <Placeholder title="Schedule Management" description="Plan and track academic schedules in one place." />
         case "notifications":
@@ -176,6 +178,8 @@ function AppContent() {
           subtitle={`Welcome back, ${user.name}`}
           onMenuClick={() => setIsMobileSidebarOpen(true)}
           onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          user={user}
+          onLogout={logout}
         />
       }
       isSidebarCollapsed={isSidebarCollapsed}

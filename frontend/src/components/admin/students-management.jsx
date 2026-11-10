@@ -1,17 +1,17 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Plus, Search, UserPlus, Users } from "lucide-react"
+import { ArrowLeft, Mail, Plus, Search, User, UserPlus, Users } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 
 const initialStudents = [
-  { id: "1", name: "Jane Student", email: "student@school.com", status: "Active" },
-  { id: "2", name: "Student One", email: "student1@school.com", status: "Active" },
-  { id: "3", name: "Student Two", email: "student2@school.com", status: "Active" },
-  { id: "4", name: "Student Three", email: "student3@school.com", status: "Active" },
+  { id: "1", name: "Jane Student", email: "student@school.com", status: "Active", batch: "Batch 1", grade: "A", joined: "Jan 2026" },
+  { id: "2", name: "Student One", email: "student1@school.com", status: "Active", batch: "Batch 1", grade: "B+", joined: "Feb 2026" },
+  { id: "3", name: "Student Two", email: "student2@school.com", status: "Active", batch: "Batch 1", grade: "A-", joined: "Feb 2026" },
+  { id: "4", name: "Student Three", email: "student3@school.com", status: "Active", batch: "Batch 2", grade: "B", joined: "Mar 2026" },
 ]
 
 export const StudentsManagement = () => {
@@ -19,6 +19,7 @@ export const StudentsManagement = () => {
   const [students, setStudents] = useState(initialStudents)
   const [newName, setNewName] = useState("")
   const [newEmail, setNewEmail] = useState("")
+  const [selectedStudent, setSelectedStudent] = useState(null)
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
@@ -28,9 +29,48 @@ export const StudentsManagement = () => {
   const addStudent = (e) => {
     e.preventDefault()
     if (!newName.trim() || !newEmail.trim()) return
-    setStudents((prev) => [{ id: String(Date.now()), name: newName.trim(), email: newEmail.trim(), status: "Active" }, ...prev])
+    setStudents((prev) => [
+      { id: String(Date.now()), name: newName.trim(), email: newEmail.trim(), status: "Active", batch: "Unassigned", grade: "—", joined: "Today" },
+      ...prev,
+    ])
     setNewName("")
     setNewEmail("")
+  }
+
+  if (selectedStudent) {
+    return (
+      <main className="min-h-full bg-transparent px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-4xl space-y-6">
+          <Button variant="ghost" onClick={() => setSelectedStudent(null)} className="gap-2 -ml-2">
+            <ArrowLeft className="h-4 w-4" /> Back to students
+          </Button>
+          <Card className="border-slate-200/80 bg-white/90 p-6 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-950/80 sm:p-8">
+            <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600 text-xl font-semibold text-white">
+                  {selectedStudent.name.charAt(0)}
+                </div>
+                <div>
+                  <h2 className="text-2xl font-semibold tracking-tight">{selectedStudent.name}</h2>
+                  <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground"><Mail className="h-4 w-4" /> {selectedStudent.email}</p>
+                </div>
+              </div>
+              <Badge variant="secondary" className="self-start">{selectedStudent.status}</Badge>
+            </div>
+            <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <Info label="Student ID" value={selectedStudent.id} />
+              <Info label="Batch" value={selectedStudent.batch} />
+              <Info label="Grade" value={selectedStudent.grade} />
+              <Info label="Joined" value={selectedStudent.joined} />
+            </div>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Button onClick={() => alert(`Edit ${selectedStudent.name} (coming soon)`)}>Edit student</Button>
+              <Button variant="outline" onClick={() => alert(`Message sent to ${selectedStudent.email}`)}>Send message</Button>
+            </div>
+          </Card>
+        </div>
+      </main>
+    )
   }
 
   return (
@@ -88,13 +128,18 @@ export const StudentsManagement = () => {
               ) : (
                 filtered.map((student) => (
                   <div key={student.id} className="flex flex-col gap-3 rounded-2xl border border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
-                    <div className="min-w-0">
-                      <p className="truncate font-medium">{student.name}</p>
-                      <p className="truncate text-sm text-muted-foreground">{student.email}</p>
+                    <div className="min-w-0 flex items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                        <User className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{student.name}</p>
+                        <p className="truncate text-sm text-muted-foreground">{student.email}</p>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary">{student.status}</Badge>
-                      <Button variant="outline" size="sm">View</Button>
+                      <Button variant="outline" size="sm" onClick={() => setSelectedStudent(student)}>View</Button>
                     </div>
                   </div>
                 ))
@@ -104,5 +149,14 @@ export const StudentsManagement = () => {
         </section>
       </div>
     </main>
+  )
+}
+
+function Info({ label, value }) {
+  return (
+    <div className="rounded-xl border border-slate-100 p-4 dark:border-slate-800">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-1 font-medium">{value}</p>
+    </div>
   )
 }

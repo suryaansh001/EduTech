@@ -10,6 +10,7 @@ import {
   FileText,
   GraduationCap,
   LayoutDashboard,
+  LogOut,
   MessageCircle,
   Settings,
   Users,
@@ -17,6 +18,7 @@ import {
   X,
 } from "lucide-react"
 import { useNavigate } from "react-router-dom"
+import { useAuth } from "@/lib/auth-context"
 
 const iconMap = {
   dashboard: LayoutDashboard,
@@ -80,6 +82,7 @@ export const Sidebar = ({
   onCloseMobile,
 }) => {
   const navigate = useNavigate()
+  const { logout } = useAuth()
   const items = menuItems[userRole] || menuItems.student
   const collapsed = Boolean(isCollapsed)
 
@@ -160,7 +163,7 @@ export const Sidebar = ({
           })}
         </nav>
 
-        <div className={`border-t border-slate-100 p-3 dark:border-slate-800 ${collapsed ? "flex justify-center" : ""}`}>
+        <div className={`space-y-2 border-t border-slate-100 p-3 dark:border-slate-800 ${collapsed ? "flex flex-col items-center" : ""}`}>
           <button
             onClick={onToggleCollapse}
             className={`flex items-center justify-center rounded-xl border border-slate-200 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-white ${
@@ -170,6 +173,17 @@ export const Sidebar = ({
           >
             {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
             {!collapsed && <span>Collapse</span>}
+          </button>
+          <button
+            onClick={logout}
+            className={`flex items-center justify-center rounded-xl border border-rose-200 text-rose-600 transition hover:bg-rose-50 dark:border-rose-900/50 dark:text-rose-400 dark:hover:bg-rose-500/10 ${
+              collapsed ? "h-10 w-10" : "w-full gap-2 px-3 py-2 text-sm font-medium"
+            }`}
+            aria-label="Logout"
+            title="Logout"
+          >
+            <LogOut className="h-4 w-4" />
+            {!collapsed && <span>Logout</span>}
           </button>
         </div>
       </aside>
