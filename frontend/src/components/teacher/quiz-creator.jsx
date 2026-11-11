@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { CalendarClock, CheckCircle2, Clock3, Plus, Trash2 } from "lucide-react"
+import { CalendarClock, CheckCircle2, Clock3, FileJson, PenLine, Plus, Trash2 } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { useQuiz } from "@/lib/quiz-context"
 import { Badge } from "@/components/ui/badge"
@@ -9,6 +9,23 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+
+const JSON_SAMPLE = `{
+  "title": "Algebra Fundamentals",
+  "description": "Basic algebra concepts",
+  "batchId": "batch1",
+  "timeLimit": 30,
+  "startTime": "2026-11-15T09:00",
+  "endTime": "2026-11-15T18:00",
+  "questions": [
+    {
+      "question": "What is 2 + 2?",
+      "options": ["3", "4", "5", "6"],
+      "correctAnswer": 1,
+      "points": 1
+    }
+  ]
+}`
 
 const emptyQuestion = () => ({
   id: `q-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -23,6 +40,10 @@ export const QuizCreator = () => {
   const { createQuiz, getQuizzesByTeacher } = useQuiz()
   const quizzes = getQuizzesByTeacher(user?.id)
 
+  const [mode, setMode] = useState("manual")
+  const [jsonText, setJsonText] = useState("")
+  const [jsonError, setJsonError] = useState("")
+  const [jsonApplied, setJsonApplied] = useState(false)
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -33,11 +54,83 @@ export const QuizCreator = () => {
   })
   const [questions, setQuestions] = useState([emptyQuestion()])
   const [success, setSuccess] = useState("")
+  const [error, setError] = useState("")
 
   const totalPoints = useMemo(
     () => questions.reduce((sum, q) => sum + Number(q.points || 0), 0),
     [questions]
   )
+
+  const toDatetimeLocal = (value) => {
+    if (!value) return ""
+    const d = new Date(value)
+    if (isNaN(d.getTime())) return String(value)
+    const pad = (n) => String(n).padStart(2, "0")
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  }
+
+  const normalizeImported = (data) => {
+    if (!data || typeof data !== "object") throw new Error("JSON must be an object.")
+    const title = String(data.title || data.name || "").trim()
+    if (!title) throw new Error("`title` (or `name`) is required.")
+    if (!Array.isArray(data.questions) || data.questions.length === 0) throw new Error("`questions` must be a non-empty array.")
+
+    const questions = data.questions.map((q, i) => {
+      if (!q || typeof q !== "object") throw new Error(`Question ${i + 1} is invalid.`)
+      const question = String(q.question || q.text || "").trim()
+      if (!question) throw new Error(`Question ${i + 1}: \`question\` is required.`)
+      let options = Array.isArray(q.options) ? q.options.map((o) => String(o ?? "").trim()) : []
+      if (options.length < 2) throw new Error(`Question ${i + 1}: at least 2 options required.`)
+      if (options.some((o) => !o)) throw new Error(`Question ${i + 1}: options cannot be empty.`)
+
+      let correctAnswer = q.correctAnswer ?? q.correctOption ?? q.answer ?? 0
+      if (typeof correctAnswer === "string") {
+        const idx = options.findIndex((o) => o.toLowerCase() === correctAnswer.toLowerCase())
+        correctAnswer = idx >= 0 ? idx : Number(correctAnswer)
+      }
+      correctAnswer = Number(correctAnswer)
+      if (!Number.isInteger(correctAnswer) || correctAnswer < 0 || correctAnswer >= options.length) {
+        throw new Error(`Question ${i + 1}: \`correctAnswer\` must be option index (0-${options.length - 1}) or matching option text.`)
+      }
+
+      return {
+        id: q.id || `q-${Date.now()}-${i}`,
+        question,
+        options,
+        correctAnswer,
+        points: Number(q.points ?? q.marks ?? 1) || 1,
+      }
+    })
+
+    return {
+      form: {
+        title,
+        description: String(data.description || "").trim(),
+        batchId: String(data.batchId || user?.batchId || "batch1"),
+        timeLimit: Number(data.timeLimit ?? data.duration ?? 30) || 30,
+        startTime: toDatetimeLocal(data.startTime || data.startDate),
+        endTime: toDatetimeLocal(data.endTime || data.endDate),
+      },
+      questions,
+    }
+  }
+
+  const applyJson = () => {
+    setJsonError("")
+    setJsonApplied(false)
+    setError("")
+    try {
+      const parsed = JSON.parse(jsonText)
+      const normalized = normalizeImported(parsed)
+      setFormData(normalized.form)
+      setQuestions(normalized.questions)
+      setJsonApplied(true)
+      setSuccess(`Imported ${normalized.questions.length} question(s) from JSON. Review and create.`)
+      setTimeout(() => setSuccess(""), 4000)
+    } catch (e) {
+      setJsonError(e instanceof SyntaxError ? `Invalid JSON: ${e.message}` : e.message)
+    }
+  }
 
   const updateQuestion = (idx, patch) => {
     setQuestions((prev) => prev.map((q, i) => (i === idx ? { ...q, ...patch } : q)))
@@ -60,6 +153,10 @@ export const QuizCreator = () => {
   const resetForm = () => {
     setFormData({ title: "", description: "", batchId: user?.batchId || "batch1", timeLimit: 30, startTime: "", endTime: "" })
     setQuestions([emptyQuestion()])
+    setJsonText("")
+    setJsonError("")
+    setJsonApplied(false)
+    setError("")
   }
 
   const isValid =
@@ -72,7 +169,11 @@ export const QuizCreator = () => {
 
   const handleCreate = (e) => {
     e.preventDefault()
-    if (!isValid) return
+    setError("")
+    if (!isValid) {
+      setError("Please fill all required fields, valid schedule, and complete questions/options.")
+      return
+    }
     createQuiz({
       ...formData,
       teacherId: user?.id,
@@ -103,11 +204,40 @@ export const QuizCreator = () => {
         <section className="rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-950/80 sm:p-8">
           <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Teacher tools</p>
           <h2 className="mt-1 text-3xl font-semibold tracking-tight">Create a quiz</h2>
-          <p className="mt-2 text-sm text-muted-foreground">Build timed quizzes, set correct answers, schedule start/end times, and publish to your students.</p>
+          <p className="mt-2 text-sm text-muted-foreground">Build quizzes manually or import all fields at once from a JSON payload.</p>
         </section>
 
         <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
           <form onSubmit={handleCreate} className="space-y-6">
+            <Card className="border-slate-200/80 bg-white/90 p-6 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <h3 className="text-lg font-semibold">Creation method</h3>
+                <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-800 dark:bg-slate-900">
+                  <button type="button" onClick={() => setMode("manual")} className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition ${mode === "manual" ? "bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white" : "text-slate-500 hover:text-slate-700 dark:text-slate-400"}`}>
+                    <PenLine className="h-4 w-4" /> Manual
+                  </button>
+                  <button type="button" onClick={() => setMode("json")} className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition ${mode === "json" ? "bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white" : "text-slate-500 hover:text-slate-700 dark:text-slate-400"}`}>
+                    <FileJson className="h-4 w-4" /> JSON import
+                  </button>
+                </div>
+              </div>
+
+              {mode === "json" ? (
+                <div className="mt-4 space-y-3">
+                  <p className="text-sm text-muted-foreground">Paste quiz JSON (all fields + questions). <span className="font-medium">correctAnswer</span> is the option index (0-based) or matching option text.</p>
+                  <Textarea value={jsonText} onChange={(e) => { setJsonText(e.target.value); setJsonError(""); setJsonApplied(false) }} placeholder={JSON_SAMPLE} rows={14} className="font-mono text-xs" />
+                  {jsonError && <p className="text-sm text-rose-600">{jsonError}</p>}
+                  {jsonApplied && <p className="text-sm text-emerald-600">JSON applied to the form. You can switch to Manual to fine-tune.</p>}
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" onClick={applyJson} className="gap-2"><FileJson className="h-4 w-4" /> Parse & apply JSON</Button>
+                    <Button type="button" variant="outline" onClick={() => { setJsonText(JSON_SAMPLE); setJsonError("") }}>Load sample</Button>
+                  </div>
+                </div>
+              ) : (
+                <p className="mt-3 text-sm text-muted-foreground">Fill quiz details and questions manually below, or switch to JSON import to prefill everything.</p>
+              )}
+            </Card>
+
             <Card className="border-slate-200/80 bg-white/90 p-6 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
               <h3 className="text-lg font-semibold">Quiz details</h3>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -191,6 +321,7 @@ export const QuizCreator = () => {
               </Button>
               <Button type="button" variant="outline" onClick={resetForm}>Reset</Button>
               {success && <span className="text-sm font-medium text-emerald-600">{success}</span>}
+              {error && <span className="text-sm font-medium text-rose-600">{error}</span>}
             </div>
           </form>
 
