@@ -48,6 +48,10 @@ export const QuizInterface = () => {
   const [sessionReady, setSessionReady] = useState(false)
   const [now, setNow] = useState(new Date())
   const autoSubmittedRef = useRef(false)
+  const startedAtRef = useRef(null)
+  const questionEnterRef = useRef(null)
+  const questionTimesRef = useRef({})
+  const prevQuestionIdRef = useRef(null)
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000)
@@ -65,6 +69,13 @@ export const QuizInterface = () => {
   const canTake = selectedQuiz && !existingAttempt && isOpen && sessionReady
   const canStart = selectedQuiz && !existingAttempt && isOpen && !sessionReady
 
+  const flushQuestionTime = (qId) => {
+    if (!qId || !questionEnterRef.current) return
+    const delta = Math.max(0, Math.round((Date.now() - questionEnterRef.current) / 1000))
+    questionTimesRef.current[qId] = (questionTimesRef.current[qId] || 0) + delta
+    questionEnterRef.current = Date.now()
+  }
+
   const startQuiz = () => {
     if (!selectedQuiz || existingAttempt) return
     const status = getQuizStatus(selectedQuiz, new Date())
@@ -76,6 +87,10 @@ export const QuizInterface = () => {
     setSubmitted(false)
     setResult(null)
     autoSubmittedRef.current = false
+    startedAtRef.current = new Date().toISOString()
+    questionTimesRef.current = {}
+    questionEnterRef.current = Date.now()
+    prevQuestionIdRef.current = selectedQuiz.questions?.[0]?.id || null
   }
 
   useEffect(() => {
@@ -87,6 +102,10 @@ export const QuizInterface = () => {
     setSubmitted(Boolean(attempt))
     setSessionReady(false)
     autoSubmittedRef.current = false
+    startedAtRef.current = attempt?.startedAt || null
+    questionTimesRef.current = attempt?.questionTimes || {}
+    questionEnterRef.current = null
+    prevQuestionIdRef.current = null
     setTimeLeft((selectedQuiz.timeLimit || 0) * 60)
   }, [selectedQuizId, existingAttempt?.id])
 
@@ -100,6 +119,15 @@ export const QuizInterface = () => {
   }, [selectedQuiz?.id, submitted, existingAttempt?.id, sessionReady, quizStatus, timeLeft])
 
   const currentQuestion = selectedQuiz?.questions?.[questionIndex]
+
+  useEffect(() => {
+    if (!sessionReady || submitted || existingAttempt || !currentQuestion) return
+    if (prevQuestionIdRef.current && prevQuestionIdRef.current !== currentQuestion.id) {
+      flushQuestionTime(prevQuestionIdRef.current)
+    }
+    if (!questionEnterRef.current) questionEnterRef.current = Date.now()
+    prevQuestionIdRef.current = currentQuestion.id
+  }, [currentQuestion?.id, sessionReady, submitted, existingAttempt?.id])
 
   const handleSelect = (questionId, optionIndex) => {
     if (submitted || existingAttempt || quizStatus !== "active") return
@@ -115,6 +143,13 @@ export const QuizInterface = () => {
       if (answers[q.id] === q.correctAnswer) score += q.points || q.marks || 1
     })
     const percentage = totalPoints ? Math.round((score / totalPoints) * 100) : 0
+    const totalSeconds = Math.max(1, Number(selectedQuiz.timeLimit) || 30) * 60
+    const elapsed = Math.max(0, totalSeconds - Math.max(0, timeLeft))
+    const qTimes = { ...questionTimesRef.current }
+    if (currentQuestion && questionEnterRef.current) {
+      const delta = Math.max(0, Math.round((Date.now() - questionEnterRef.current) / 1000))
+      qTimes[currentQuestion.id] = (qTimes[currentQuestion.id] || 0) + delta
+    }
     return {
       id: `attempt-${Date.now()}`,
       quizId: selectedQuiz.id,
@@ -124,6 +159,9 @@ export const QuizInterface = () => {
       score,
       totalPoints,
       percentage,
+      timeSpent: elapsed,
+      startedAt: startedAtRef.current || new Date().toISOString(),
+      questionTimes: qTimes,
       submittedAt: new Date().toISOString(),
     }
   }
@@ -133,6 +171,8 @@ export const QuizInterface = () => {
     if (!auto && quizStatus !== "active") return
     if (auto && autoSubmittedRef.current) return
     if (auto) autoSubmittedRef.current = true
+    if (currentQuestion) flushQuestionTime(currentQuestion.id)
+    questionEnterRef.current = null
     const res = calculateResult()
     submitQuizAttempt(res)
     setResult(res)

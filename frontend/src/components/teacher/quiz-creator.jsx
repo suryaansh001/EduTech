@@ -1,7 +1,8 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { CalendarClock, CheckCircle2, Clock3, FileJson, PenLine, Plus, Trash2 } from "lucide-react"
+import { useNavigate } from "react-router-dom"
+import { BarChart3, CalendarClock, CheckCircle2, Clock3, FileJson, PenLine, Pencil, Plus, Trash2, X } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { useQuiz } from "@/lib/quiz-context"
 import { Badge } from "@/components/ui/badge"
@@ -37,7 +38,8 @@ const emptyQuestion = () => ({
 
 export const QuizCreator = () => {
   const { user } = useAuth()
-  const { createQuiz, getQuizzesByTeacher } = useQuiz()
+  const { createQuiz, updateQuiz, getQuizzesByTeacher, getAttemptsByQuiz } = useQuiz()
+  const navigate = useNavigate()
   const quizzes = getQuizzesByTeacher(user?.id)
 
   const [mode, setMode] = useState("manual")
@@ -55,6 +57,8 @@ export const QuizCreator = () => {
   const [questions, setQuestions] = useState([emptyQuestion()])
   const [success, setSuccess] = useState("")
   const [error, setError] = useState("")
+  const [editingId, setEditingId] = useState(null)
+  const [analyticsQuizId, setAnalyticsQuizId] = useState(null)
 
   const totalPoints = useMemo(
     () => questions.reduce((sum, q) => sum + Number(q.points || 0), 0),
@@ -125,7 +129,7 @@ export const QuizCreator = () => {
       setFormData(normalized.form)
       setQuestions(normalized.questions)
       setJsonApplied(true)
-      setSuccess(`Imported ${normalized.questions.length} question(s) from JSON. Review and create.`)
+      setSuccess(`Imported ${normalized.questions.length} question(s) from JSON. Review and ${editingId ? "save" : "create"}.`)
       setTimeout(() => setSuccess(""), 4000)
     } catch (e) {
       setJsonError(e instanceof SyntaxError ? `Invalid JSON: ${e.message}` : e.message)
@@ -157,6 +161,30 @@ export const QuizCreator = () => {
     setJsonError("")
     setJsonApplied(false)
     setError("")
+    setEditingId(null)
+  }
+
+  const startEdit = (quiz) => {
+    setEditingId(quiz.id)
+    setFormData({
+      title: quiz.title || "",
+      description: quiz.description || "",
+      batchId: quiz.batchId || user?.batchId || "batch1",
+      timeLimit: quiz.timeLimit || 30,
+      startTime: toDatetimeLocal(quiz.startTime),
+      endTime: toDatetimeLocal(quiz.endTime),
+    })
+    setQuestions((quiz.questions || [emptyQuestion()]).map((q, i) => ({
+      id: q.id || `q-${i}`,
+      question: q.question || "",
+      options: Array.isArray(q.options) ? [...q.options] : ["", "", "", ""],
+      correctAnswer: Number(q.correctAnswer ?? 0),
+      points: Number(q.points ?? q.marks ?? 1) || 1,
+    })))
+    setMode("manual")
+    setSuccess("")
+    setError("")
+    window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
   const isValid =
@@ -174,7 +202,7 @@ export const QuizCreator = () => {
       setError("Please fill all required fields, valid schedule, and complete questions/options.")
       return
     }
-    createQuiz({
+    const payload = {
       ...formData,
       teacherId: user?.id,
       teacherName: user?.name,
@@ -183,8 +211,6 @@ export const QuizCreator = () => {
       endTime: new Date(formData.endTime).toISOString(),
       isActive: true,
       isApproved: true,
-      maxAttempts: 1,
-      showLeaderboard: true,
       questions: questions.map((q, idx) => ({
         id: q.id || `q-${idx + 1}`,
         question: q.question,
@@ -192,8 +218,14 @@ export const QuizCreator = () => {
         correctAnswer: Number(q.correctAnswer),
         points: Number(q.points) || 1,
       })),
-    })
-    setSuccess("Quiz created and scheduled successfully.")
+    }
+    if (editingId) {
+      updateQuiz(editingId, payload)
+      setSuccess("Quiz updated successfully.")
+    } else {
+      createQuiz({ ...payload, maxAttempts: 1, showLeaderboard: true })
+      setSuccess("Quiz created and scheduled successfully.")
+    }
     resetForm()
     setTimeout(() => setSuccess(""), 3000)
   }
@@ -202,9 +234,16 @@ export const QuizCreator = () => {
     <main className="min-h-full bg-transparent px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl space-y-6">
         <section className="rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-950/80 sm:p-8">
-          <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Teacher tools</p>
-          <h2 className="mt-1 text-3xl font-semibold tracking-tight">Create a quiz</h2>
-          <p className="mt-2 text-sm text-muted-foreground">Build quizzes manually or import all fields at once from a JSON payload.</p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Teacher tools</p>
+              <h2 className="mt-1 text-3xl font-semibold tracking-tight">{editingId ? "Edit quiz" : "Create a quiz"}</h2>
+              <p className="mt-2 text-sm text-muted-foreground">{editingId ? "Update details, schedule/time, and questions for this quiz." : "Build quizzes manually or import all fields at once from a JSON payload."}</p>
+            </div>
+            {editingId && (
+              <Button type="button" variant="outline" onClick={resetForm} className="gap-2"><X className="h-4 w-4" /> Cancel edit</Button>
+            )}
+          </div>
         </section>
 
         <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
@@ -317,9 +356,9 @@ export const QuizCreator = () => {
 
             <div className="flex flex-wrap items-center gap-3">
               <Button type="submit" disabled={!isValid} className="gap-2">
-                <CheckCircle2 className="h-4 w-4" /> Create quiz
+                <CheckCircle2 className="h-4 w-4" /> {editingId ? "Update quiz" : "Create quiz"}
               </Button>
-              <Button type="button" variant="outline" onClick={resetForm}>Reset</Button>
+              <Button type="button" variant="outline" onClick={resetForm}>{editingId ? "Cancel" : "Reset"}</Button>
               {success && <span className="text-sm font-medium text-emerald-600">{success}</span>}
               {error && <span className="text-sm font-medium text-rose-600">{error}</span>}
             </div>
@@ -355,18 +394,30 @@ export const QuizCreator = () => {
                 {quizzes.length === 0 ? (
                   <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-sm text-muted-foreground dark:border-slate-800">No quizzes created yet.</p>
                 ) : (
-                  quizzes.slice(0, 5).map((quiz) => (
-                    <div key={quiz.id} className="flex items-center justify-between rounded-xl border border-slate-100 p-3 dark:border-slate-800">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">{quiz.title}</p>
-                        <p className="text-xs text-muted-foreground">{quiz.questions.length} questions · {quiz.timeLimit} min</p>
+                  quizzes.map((quiz) => (
+                    <div key={quiz.id} className={`rounded-xl border p-3 transition dark:border-slate-800 ${analyticsQuizId === quiz.id ? "border-blue-300 bg-blue-50/40 dark:border-blue-900" : "border-slate-100"}`}>
+                      <button type="button" onClick={() => setAnalyticsQuizId(analyticsQuizId === quiz.id ? null : quiz.id)} className="w-full text-left">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium">{quiz.title}</p>
+                            <p className="text-xs text-muted-foreground">{quiz.questions.length} questions · {quiz.timeLimit} min</p>
+                          </div>
+                          <Badge variant={quiz.isActive ? "default" : "secondary"}>{quiz.isActive ? "Active" : "Draft"}</Badge>
+                        </div>
+                      </button>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5" onClick={() => startEdit(quiz)}><Pencil className="h-3.5 w-3.5" /> Edit</Button>
+                        <Button type="button" size="sm" variant={analyticsQuizId === quiz.id ? "default" : "outline"} className="h-8 gap-1.5" onClick={() => setAnalyticsQuizId(analyticsQuizId === quiz.id ? null : quiz.id)}><BarChart3 className="h-3.5 w-3.5" /> Analytics</Button>
                       </div>
-                      <Badge variant={quiz.isActive ? "default" : "secondary"}>{quiz.isActive ? "Active" : "Draft"}</Badge>
                     </div>
                   ))
                 )}
               </div>
             </Card>
+
+            {analyticsQuizId && (
+              <QuizAnalytics quiz={quizzes.find((q) => q.id === analyticsQuizId)} attempts={getAttemptsByQuiz(analyticsQuizId)} onClose={() => setAnalyticsQuizId(null)} />
+            )}
           </div>
         </div>
       </div>
@@ -380,5 +431,129 @@ function PreviewRow({ label, value }) {
       <span className="text-slate-500">{label}</span>
       <span className="font-medium">{value}</span>
     </div>
+  )
+}
+function formatDuration(seconds) {
+  if (seconds == null || isNaN(seconds)) return "—"
+  const s = Math.max(0, Math.round(Number(seconds)))
+  const m = Math.floor(s / 60)
+  const r = s % 60
+  if (m === 0) return `${r}s`
+  return `${m}m ${r}s`
+}
+
+function QuizAnalytics({ quiz, attempts, onClose }) {
+  const [expanded, setExpanded] = useState(null)
+  if (!quiz) return null
+
+  const avgScore = attempts.length ? Math.round(attempts.reduce((s, a) => s + (Number(a.percentage) || 0), 0) / attempts.length) : 0
+  const avgTime = attempts.length ? Math.round(attempts.reduce((s, a) => s + (Number(a.timeSpent) || 0), 0) / attempts.length) : 0
+
+  const questionStats = (quiz.questions || []).map((q) => {
+    let attempted = 0, correct = 0, incorrect = 0, timeSum = 0, timeCount = 0
+    attempts.forEach((a) => {
+      const ans = a.answers?.[q.id]
+      const qt = a.questionTimes?.[q.id]
+      if (ans !== undefined && ans !== null) {
+        attempted += 1
+        if (Number(ans) === Number(q.correctAnswer)) correct += 1
+        else incorrect += 1
+      }
+      if (qt != null) { timeSum += Number(qt) || 0; timeCount += 1 }
+    })
+    return { ...q, attempted, correct, incorrect, avgTime: timeCount ? Math.round(timeSum / timeCount) : null }
+  })
+
+  return (
+    <Card className="border-slate-200/80 bg-white/90 p-6 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-950/80 xl:col-span-1">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-lg font-semibold">Quiz analytics</h3>
+          <p className="mt-1 text-sm text-muted-foreground">{quiz.title}</p>
+        </div>
+        <Button type="button" variant="ghost" size="sm" onClick={onClose} className="gap-1.5"><X className="h-4 w-4" /> Close</Button>
+      </div>
+
+      <div className="mt-4 grid grid-cols-3 gap-3">
+        <div className="rounded-xl border border-slate-100 p-3 text-center dark:border-slate-800">
+          <p className="text-xs text-muted-foreground">Attempted</p>
+          <p className="mt-1 text-xl font-semibold">{attempts.length}</p>
+        </div>
+        <div className="rounded-xl border border-slate-100 p-3 text-center dark:border-slate-800">
+          <p className="text-xs text-muted-foreground">Avg score</p>
+          <p className="mt-1 text-xl font-semibold">{avgScore}%</p>
+        </div>
+        <div className="rounded-xl border border-slate-100 p-3 text-center dark:border-slate-800">
+          <p className="text-xs text-muted-foreground">Avg time</p>
+          <p className="mt-1 text-xl font-semibold">{formatDuration(avgTime)}</p>
+        </div>
+      </div>
+
+      <div className="mt-6">
+        <h4 className="text-sm font-semibold">Question-wise analytics</h4>
+        <div className="mt-3 space-y-2">
+          {questionStats.map((q, i) => (
+            <div key={q.id} className="rounded-xl border border-slate-100 p-3 text-sm dark:border-slate-800">
+              <p className="font-medium">Q{i + 1}. {q.question}</p>
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600 dark:text-slate-300">
+                <span>Attempted: <b>{q.attempted}</b></span>
+                <span className="text-emerald-600">Correct: <b>{q.correct}</b></span>
+                <span className="text-rose-600">Incorrect: <b>{q.incorrect}</b></span>
+                <span>Avg time: <b>{formatDuration(q.avgTime)}</b></span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-6">
+        <h4 className="text-sm font-semibold">Student attempts</h4>
+        {attempts.length === 0 ? (
+          <p className="mt-2 text-sm text-muted-foreground">No attempts yet.</p>
+        ) : (
+          <div className="mt-3 space-y-2">
+            {attempts.map((a) => {
+              const open = expanded === a.id
+              return (
+                <div key={a.id} className="rounded-xl border border-slate-100 dark:border-slate-800">
+                  <button type="button" onClick={() => setExpanded(open ? null : a.id)} className="w-full p-3 text-left">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-medium">{a.studentName || a.studentId}</p>
+                        <p className="text-xs text-muted-foreground">{a.submittedAt ? new Date(a.submittedAt).toLocaleString() : "—"} · Time: {formatDuration(a.timeSpent)}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={a.percentage >= 50 ? "default" : "secondary"}>{a.score}/{a.totalPoints} ({a.percentage}%)</Badge>
+                        <span className="text-xs text-blue-600">{open ? "Hide" : "Details"}</span>
+                      </div>
+                    </div>
+                  </button>
+                  {open && (
+                    <div className="border-t border-slate-100 p-3 dark:border-slate-800">
+                      <p className="mb-2 text-xs text-muted-foreground">Started: {a.startedAt ? new Date(a.startedAt).toLocaleString() : "—"} · Submitted: {a.submittedAt ? new Date(a.submittedAt).toLocaleString() : "—"}</p>
+                      <div className="space-y-2">
+                        {(quiz.questions || []).map((q, i) => {
+                          const ans = a.answers?.[q.id]
+                          const correct = ans !== undefined && Number(ans) === Number(q.correctAnswer)
+                          const qTime = a.questionTimes?.[q.id]
+                          return (
+                            <div key={q.id} className={`rounded-lg border p-2 text-xs ${ans === undefined ? "border-slate-200 dark:border-slate-700" : correct ? "border-emerald-200 bg-emerald-50/40 dark:border-emerald-900/40 dark:bg-emerald-500/5" : "border-rose-200 bg-rose-50/40 dark:border-rose-900/40 dark:bg-rose-500/5"}`}>
+                              <p className="font-medium">Q{i + 1}. {q.question}</p>
+                              <p className="mt-1">Answer: {ans !== undefined ? (q.options?.[ans] ?? ans) : "Not answered"} {ans !== undefined ? (correct ? "✓" : "✗") : ""}</p>
+                              <p>Correct: {q.options?.[q.correctAnswer]}</p>
+                              <p>Time taken: {formatDuration(qTime)}</p>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </Card>
   )
 }

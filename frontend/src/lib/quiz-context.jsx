@@ -160,6 +160,10 @@ export function QuizProvider({ children }) {
     return attempts.filter((attempt) => attempt.studentId === studentId)
   }
 
+  const getQuizById = (quizId) => {
+    return quizzes.find((quiz) => quiz.id === quizId) || null
+  }
+
   const toggleLeaderboardVisibility = (quizId, visible) => {
     updateQuiz(quizId, { showLeaderboard: visible })
   }
@@ -178,6 +182,7 @@ export function QuizProvider({ children }) {
         getQuizzesByBatch,
         getAttemptsByQuiz,
         getAttemptsByStudent,
+        getQuizById,
         toggleLeaderboardVisibility,
       }}
     >
