@@ -42,13 +42,14 @@ export function AuthProvider({ children }) {
         body: JSON.stringify({ email, password }),
       })
       const json = await res.json().catch(() => ({}))
-      if (res.ok && json?.data?.user && json?.data?.token) {
-        const nextUser = normalizeUser(json.data.user)
-        const nextToken = json.data.token
+      const apiUser = json?.data?.user || json?.user
+      const apiToken = json?.data?.token || json?.token
+      if (res.ok && apiUser && apiToken) {
+        const nextUser = normalizeUser(apiUser)
         setUser(nextUser)
-        setToken(nextToken)
+        setToken(apiToken)
         localStorage.setItem("user", JSON.stringify(nextUser))
-        localStorage.setItem("token", nextToken)
+        localStorage.setItem("token", apiToken)
         return true
       }
     } catch {}

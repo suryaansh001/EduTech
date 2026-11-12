@@ -12,23 +12,22 @@ export const API_BASE_URL = `${API_URL}/api`;
  */
 async function fetchAPI(endpoint, options = {}) {
   const url = `${API_URL}${endpoint}`;
-  
+
   const response = await fetch(url, {
+    ...options,
     headers: {
       'Content-Type': 'application/json',
-      ...options.headers,
+      ...(options.headers || {}),
     },
-    ...options,
   });
 
+  const data = await response.json().catch(() => ({}));
+
   if (!response.ok) {
-    const error = await response.json().catch(() => ({
-      message: 'An error occurred',
-    }));
-    throw new Error(error.message);
+    throw new Error(data.message || 'An error occurred');
   }
 
-  return response.json();
+  return data;
 }
 
 /**
