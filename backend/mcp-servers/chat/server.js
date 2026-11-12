@@ -9,8 +9,8 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const prisma = new PrismaClient();
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-const pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
+const groq = process.env.GROQ_API_KEY ? new Groq({ apiKey: process.env.GROQ_API_KEY }) : null;
+const pinecone = process.env.PINECONE_API_KEY ? new Pinecone({ apiKey: process.env.PINECONE_API_KEY }) : null;
 
 class ChatMCPServer {
   constructor() {
@@ -34,7 +34,7 @@ class ChatMCPServer {
 
   async initializePinecone() {
     try {
-      if (process.env.PINECONE_INDEX_NAME) {
+      if (process.env.PINECONE_INDEX_NAME && pinecone) {
         this.pineconeIndex = pinecone.index(process.env.PINECONE_INDEX_NAME);
         console.error('Pinecone initialized successfully');
       }

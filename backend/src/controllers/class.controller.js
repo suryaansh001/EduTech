@@ -5,11 +5,20 @@ export const classController = {
   // Create a new class
   createClass: async (req, res, next) => {
     try {
-      const teacherId = req.user.id;
+      const actingUserId = req.user.id;
+      const actingUserRole = req.user.role;
       const classData = req.body;
-      
+
+      let teacherId = actingUserId;
+      if (classData.teacherId) {
+        if (actingUserRole !== 'ADMIN') {
+          return res.status(403).json({ success: false, message: 'Only admins can assign a teacher to a batch' });
+        }
+        teacherId = classData.teacherId;
+      }
+
       const newClass = await classService.createClass(teacherId, classData);
-      
+
       successResponse(res, newClass, 'Class created successfully', 201);
     } catch (error) {
       next(error);
@@ -75,11 +84,16 @@ export const classController = {
   updateClass: async (req, res, next) => {
     try {
       const { id } = req.params;
-      const teacherId = req.user.id;
+      const actingUserId = req.user.id;
+      const actingUserRole = req.user.role;
       const updateData = req.body;
-      
-      const updatedClass = await classService.updateClass(id, teacherId, updateData);
-      
+
+      if (updateData.teacherId && actingUserRole !== 'ADMIN') {
+        return res.status(403).json({ success: false, message: 'Only admins can reassign a teacher' });
+      }
+
+      const updatedClass = await classService.updateClass(id, actingUserId, actingUserRole, updateData);
+
       successResponse(res, updatedClass, 'Class updated successfully');
     } catch (error) {
       next(error);

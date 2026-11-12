@@ -70,7 +70,8 @@ export const createClassSchema = Joi.object({
   startDate: Joi.date().min('now').required(),
   endDate: Joi.date().greater(Joi.ref('startDate')).optional(),
   meetingLink: Joi.string().uri().optional(),
-  classCode: Joi.string().alphanum().length(6).optional()
+  classCode: Joi.string().alphanum().length(6).optional(),
+  teacherId: Joi.string().min(1).max(64).optional()
 });
 
 export const updateClassSchema = Joi.object({
@@ -82,7 +83,8 @@ export const updateClassSchema = Joi.object({
   startDate: Joi.date().optional(),
   endDate: Joi.date().optional(),
   meetingLink: Joi.string().uri().optional(),
-  status: Joi.string().valid('DRAFT', 'ACTIVE', 'COMPLETED', 'CANCELLED').optional()
+  status: Joi.string().valid('DRAFT', 'ACTIVE', 'COMPLETED', 'CANCELLED').optional(),
+  teacherId: Joi.string().min(1).max(64).optional()
 });
 
 export const joinClassSchema = Joi.object({

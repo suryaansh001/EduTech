@@ -250,17 +250,22 @@ export const classService = {
   },
 
   // Update a class
-  updateClass: async (classId, teacherId, updateData) => {
-    // Verify ownership
-    const existingClass = await prisma.class.findFirst({
-      where: {
-        id: classId,
-        teacherId
-      }
-    });
+  updateClass: async (classId, actingUserId, actingUserRole, updateData) => {
+    const where = actingUserRole === 'ADMIN'
+      ? { id: classId }
+      : { id: classId, teacherId: actingUserId };
+
+    const existingClass = await prisma.class.findFirst({ where });
 
     if (!existingClass) {
       throw new Error('Class not found or you do not have permission to update it');
+    }
+
+    if (updateData.teacherId) {
+      const teacher = await prisma.user.findUnique({ where: { id: updateData.teacherId } });
+      if (!teacher || teacher.role !== 'TEACHER') {
+        throw new Error('Invalid teacher ID');
+      }
     }
 
     const {
@@ -272,7 +277,8 @@ export const classService = {
       startDate,
       endDate,
       meetingLink,
-      status
+      status,
+      teacherId
     } = updateData;
 
     const updatedClass = await prisma.class.update({
@@ -286,7 +292,8 @@ export const classService = {
         ...(startDate && { startDate: new Date(startDate) }),
         ...(endDate !== undefined && { endDate: endDate ? new Date(endDate) : null }),
         ...(meetingLink !== undefined && { meetingLink }),
-        ...(status && { status })
+        ...(status && { status }),
+        ...(teacherId && actingUserRole === 'ADMIN' ? { teacherId } : {})
       },
       include: {
         teacher: {
@@ -305,7 +312,7 @@ export const classService = {
       }
     });
 
-    logger.info(`Class updated: ${classId} by teacher ${teacherId}`);
+    logger.info(`Class updated: ${classId} by ${actingUserId}`);
     return updatedClass;
   },
 

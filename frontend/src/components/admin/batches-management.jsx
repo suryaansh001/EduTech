@@ -1,27 +1,31 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { BookOpen, Loader2, Plus, Search, UserMinus, UserPlus, Users } from "lucide-react"
+import { BookOpen, Loader2, Plus, Search, UserCheck, UserMinus, UserPlus, Users } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
-import { classesApi } from "@/lib/api"
+import { classesApi, usersApi } from "@/lib/api"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 
 export const BatchesManagement = () => {
-  const { token, user } = useAuth()
+  const { token } = useAuth()
   const [batches, setBatches] = useState([])
+  const [teachers, setTeachers] = useState([])
   const [search, setSearch] = useState("")
   const [name, setName] = useState("")
   const [subject, setSubject] = useState("")
   const [description, setDescription] = useState("")
+  const [createTeacherId, setCreateTeacherId] = useState("")
+  const [assignTeacherId, setAssignTeacherId] = useState("")
   const [selectedId, setSelectedId] = useState(null)
   const [enrollments, setEnrollments] = useState([])
   const [available, setAvailable] = useState([])
   const [availSearch, setAvailSearch] = useState("")
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [assigning, setAssigning] = useState(false)
   const [enrollLoading, setEnrollLoading] = useState(false)
   const [addingId, setAddingId] = useState(null)
   const [error, setError] = useState("")
@@ -33,9 +37,14 @@ export const BatchesManagement = () => {
     if (!token) { setError("Login with a database admin/teacher account to manage batches."); setBatches([]); return }
     setLoading(true); setError("")
     try {
-      const res = await classesApi.getClasses(token)
+      const [res, tRes] = await Promise.all([
+        classesApi.getClasses(token),
+        usersApi.getUsers(token, { role: "TEACHER", limit: 100 }).catch(() => null),
+      ])
       const list = Array.isArray(res?.data) ? res.data : (res?.data?.classes || [])
+      const tList = tRes ? (Array.isArray(tRes?.data) ? tRes.data : (tRes?.data?.users || [])) : []
       setBatches(list)
+      setTeachers(tList)
     } catch (e) { setError(e.message || "Failed to load batches"); setBatches([]) }
     finally { setLoading(false) }
   }
@@ -55,7 +64,15 @@ export const BatchesManagement = () => {
   }
 
   useEffect(() => { loadBatches() }, [token])
-  useEffect(() => { if (selectedId) loadDetails(selectedId); else { setEnrollments([]); setAvailable([]) } }, [selectedId])
+  useEffect(() => {
+    if (selectedId) {
+      loadDetails(selectedId)
+      const b = batches.find((x) => x.id === selectedId)
+      setAssignTeacherId(b?.teacherId || b?.teacher?.id || "")
+    } else {
+      setEnrollments([]); setAvailable([]); setAssignTeacherId("")
+    }
+  }, [selectedId, batches])
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
@@ -72,18 +89,32 @@ export const BatchesManagement = () => {
     if (!name.trim() || !subject.trim() || !token) return
     setSaving(true); setError(""); setSuccess("")
     try {
-      await classesApi.createClass({
+      const payload = {
         title: name.trim(),
         subject: subject.trim(),
         description: description.trim() || undefined,
         startDate: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-      }, token)
-      setName(""); setSubject(""); setDescription("")
+      }
+      if (createTeacherId) payload.teacherId = createTeacherId
+      await classesApi.createClass(payload, token)
+      setName(""); setSubject(""); setDescription(""); setCreateTeacherId("")
       setSuccess("Batch created in database.")
       await loadBatches()
       setTimeout(() => setSuccess(""), 3000)
     } catch (e) { setError(e.message || "Failed to create batch") }
     finally { setSaving(false) }
+  }
+
+  const assignTeacher = async () => {
+    if (!token || !selectedId || !assignTeacherId) return
+    setAssigning(true); setError(""); setSuccess("")
+    try {
+      await classesApi.updateClass(selectedId, { teacherId: assignTeacherId }, token)
+      setSuccess("Teacher assigned to batch.")
+      await loadBatches()
+      setTimeout(() => setSuccess(""), 3000)
+    } catch (e) { setError(e.message || "Failed to assign teacher") }
+    finally { setAssigning(false) }
   }
 
   const addStudent = async (studentId) => {
@@ -135,6 +166,10 @@ export const BatchesManagement = () => {
                 <Input placeholder="Batch/Class name" value={name} onChange={(e) => setName(e.target.value)} />
                 <Input placeholder="Subject (required)" value={subject} onChange={(e) => setSubject(e.target.value)} />
                 <Input placeholder="Description (optional)" value={description} onChange={(e) => setDescription(e.target.value)} />
+                <select value={createTeacherId} onChange={(e) => setCreateTeacherId(e.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                  <option value="">Assign teacher (required for admin)</option>
+                  {teachers.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.email})</option>)}
+                </select>
                 <Button type="submit" className="w-full gap-2" disabled={!name.trim() || !subject.trim() || saving || !token}>
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Create batch
                 </Button>
@@ -176,9 +211,24 @@ export const BatchesManagement = () => {
               <div className="flex h-full min-h-[300px] items-center justify-center text-center text-sm text-muted-foreground">Select a batch to view and assign students.</div>
             ) : (
               <div className="space-y-6">
-                <div>
-                  <h3 className="text-xl font-semibold tracking-tight">{selected.title}</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">{selected.subject}{selected.description ? ` · ${selected.description}` : ""}</p>
+                <div className="space-y-3">
+                  <div>
+                    <h3 className="text-xl font-semibold tracking-tight">{selected.title}</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">{selected.subject}{selected.description ? ` · ${selected.description}` : ""}</p>
+                    <p className="mt-1 text-sm"><span className="text-muted-foreground">Teacher:</span> <span className="font-medium">{selected.teacher?.name || "Unassigned"}</span>{selected.teacher?.email ? <span className="text-muted-foreground"> ({selected.teacher.email})</span> : null}</p>
+                  </div>
+                  <div className="flex flex-col gap-2 rounded-xl border border-slate-200 p-3 dark:border-slate-800 sm:flex-row sm:items-center">
+                    <div className="flex items-center gap-2 text-sm font-medium"><UserCheck className="h-4 w-4 text-blue-600" /> Assign / change teacher</div>
+                    <div className="flex flex-1 flex-col gap-2 sm:flex-row">
+                      <select value={assignTeacherId} onChange={(e) => setAssignTeacherId(e.target.value)} className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm sm:max-w-xs">
+                        <option value="">Select teacher</option>
+                        {teachers.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.email})</option>)}
+                      </select>
+                      <Button type="button" size="sm" onClick={assignTeacher} disabled={!assignTeacherId || assigning || assignTeacherId === selected.teacherId} className="gap-1.5">
+                        {assigning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} Save
+                      </Button>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="grid gap-6 lg:grid-cols-2">

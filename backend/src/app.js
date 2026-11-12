@@ -249,7 +249,7 @@ app.use('*', (req, res) => {
 });
 
 // Initialize Socket.IO handlers
-initializeSocket(io);
+if (io) initializeSocket(io);
 
 /**
  * Global Error Handler
