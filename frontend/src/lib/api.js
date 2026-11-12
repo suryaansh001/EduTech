@@ -24,7 +24,10 @@ async function fetchAPI(endpoint, options = {}) {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(data.message || 'An error occurred');
+    const detail = Array.isArray(data.errors) && data.errors.length
+      ? `: ${data.errors.map((e) => e.message || e.field).join(', ')}`
+      : '';
+    throw new Error((data.message || 'An error occurred') + detail);
   }
 
   return data;

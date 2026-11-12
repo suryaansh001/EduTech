@@ -76,8 +76,7 @@ export const BatchesManagement = () => {
         title: name.trim(),
         subject: subject.trim(),
         description: description.trim() || undefined,
-        startDate: new Date().toISOString(),
-        status: "ACTIVE",
+        startDate: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
       }, token)
       setName(""); setSubject(""); setDescription("")
       setSuccess("Batch created in database.")
