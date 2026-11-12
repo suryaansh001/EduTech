@@ -56,17 +56,20 @@ export const xssProtection = (req, res, next) => {
  */
 export const sqlInjectionProtection = (req, res, next) => {
   const sqlPatterns = [
-    /(\%27)|(\')|(\-\-)|(\%23)|(#)/i,
-    /(\%3D)|(=)[^\s]*(\%27)|(\')/i,
-    /\w*((\%27)|(\'))((\%6F)|o|(\%4F))((\%72)|r|(\%52))/i,
-    /((\%27)|(\'))union/i,
+    /(--|%27|%23)/i,
+    /(\bor\b|\band\b)\s+['"]?\w+['"]?\s*=\s*['"]?\w+['"]?/i,
+    /union\s+select/i,
+    /insert\s+into/i,
+    /delete\s+from/i,
+    /drop\s+(table|database|schema)/i,
+    /update\s+\w+\s+set/i,
     /exec(\s|\+)+(s|x)p\w+/i,
-    /UNION\s+SELECT/i,
-    /INSERT\s+INTO/i,
-    /DELETE\s+FROM/i,
-    /DROP\s+TABLE/i,
-    /UPDATE\s+\w+\s+SET/i
   ];
+
+  // Skip for safe JSON endpoints (e.g. login) to avoid false positives on normal passwords; Prisma parameterizes queries.
+  if (req.path && req.path.startsWith('/api/auth/')) {
+    return next();
+  }
 
   const checkValue = (value) => {
     if (typeof value === 'string') {

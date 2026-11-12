@@ -19,6 +19,16 @@ const enrollmentStatusSchema = Joi.object({
   status: Joi.string().valid('PENDING', 'ACTIVE', 'COMPLETED', 'DROPPED').required()
 });
 
+const removeStudentParamsSchema = Joi.object({
+  id: Joi.string().min(1).max(64).required(),
+  studentId: Joi.string().min(1).max(64).required()
+});
+
+const enrollmentParamsSchema = Joi.object({
+  id: Joi.string().min(1).max(64).required(),
+  enrollmentId: Joi.string().min(1).max(64).required()
+});
+
 const router = express.Router();
 
 // All routes require authentication
@@ -78,10 +88,7 @@ router.get('/:id/enrollments',
 // Update enrollment status (teachers and admins only)
 router.patch('/:id/enrollments/:enrollmentId',
   authorize('TEACHER', 'ADMIN'),
-  validateParams({
-    id: idSchema.extract('id'),
-    enrollmentId: idSchema.extract('id')
-  }),
+  validateParams(enrollmentParamsSchema),
   validate(enrollmentStatusSchema),
   classController.updateEnrollmentStatus
 );
@@ -104,10 +111,7 @@ router.post('/:id/bulk-enroll',
 // Remove student from class (teachers and admins only)
 router.delete('/:id/students/:studentId',
   authorize('TEACHER', 'ADMIN'),
-  validateParams({
-    id: idSchema.extract('id'),
-    studentId: idSchema.extract('id')
-  }),
+  validateParams(removeStudentParamsSchema),
   classController.removeStudentFromClass
 );
 
