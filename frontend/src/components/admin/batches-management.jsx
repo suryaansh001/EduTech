@@ -96,7 +96,12 @@ export const BatchesManagement = () => {
         startDate: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
       }
       if (createTeacherId) payload.teacherId = createTeacherId
-      await classesApi.createClass(payload, token)
+      const created = await classesApi.createClass(payload, token)
+      const createdId = created?.data?.id
+      // activate so teacher/students see it
+      if (createdId) {
+        try { await classesApi.updateClass(createdId, { status: "ACTIVE" }, token) } catch {}
+      }
       setName(""); setSubject(""); setDescription(""); setCreateTeacherId("")
       setSuccess("Batch created in database.")
       await loadBatches()
@@ -217,16 +222,25 @@ export const BatchesManagement = () => {
                     <p className="mt-1 text-sm text-muted-foreground">{selected.subject}{selected.description ? ` · ${selected.description}` : ""}</p>
                     <p className="mt-1 text-sm"><span className="text-muted-foreground">Teacher:</span> <span className="font-medium">{selected.teacher?.name || "Unassigned"}</span>{selected.teacher?.email ? <span className="text-muted-foreground"> ({selected.teacher.email})</span> : null}</p>
                   </div>
-                  <div className="flex flex-col gap-2 rounded-xl border border-slate-200 p-3 dark:border-slate-800 sm:flex-row sm:items-center">
-                    <div className="flex items-center gap-2 text-sm font-medium"><UserCheck className="h-4 w-4 text-blue-600" /> Assign / change teacher</div>
-                    <div className="flex flex-1 flex-col gap-2 sm:flex-row">
-                      <select value={assignTeacherId} onChange={(e) => setAssignTeacherId(e.target.value)} className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm sm:max-w-xs">
-                        <option value="">Select teacher</option>
-                        {teachers.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.email})</option>)}
-                      </select>
-                      <Button type="button" size="sm" onClick={assignTeacher} disabled={!assignTeacherId || assigning || assignTeacherId === selected.teacherId} className="gap-1.5">
-                        {assigning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} Save
-                      </Button>
+                  <div className="flex flex-col gap-3 rounded-xl border border-slate-200 p-3 dark:border-slate-800">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <div className="flex items-center gap-2 text-sm font-medium"><UserCheck className="h-4 w-4 text-blue-600" /> Assign / change teacher</div>
+                      <div className="flex flex-1 flex-col gap-2 sm:flex-row">
+                        <select value={assignTeacherId} onChange={(e) => setAssignTeacherId(e.target.value)} className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm sm:max-w-xs">
+                          <option value="">Select teacher</option>
+                          {teachers.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.email})</option>)}
+                        </select>
+                        <Button type="button" size="sm" onClick={assignTeacher} disabled={!assignTeacherId || assigning || assignTeacherId === selected.teacherId} className="gap-1.5">
+                          {assigning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} Save
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                      <span className="text-muted-foreground">Status:</span>
+                      <Badge variant={selected.status === "ACTIVE" ? "default" : "secondary"}>{selected.status || "—"}</Badge>
+                      {selected.status !== "ACTIVE" && (
+                        <Button type="button" size="sm" variant="outline" onClick={async () => { try { await classesApi.updateClass(selected.id, { status: "ACTIVE" }, token); setSuccess("Batch activated."); await loadBatches() } catch(e){ setError(e.message) } }}>Activate batch</Button>
+                      )}
                     </div>
                   </div>
                 </div>
