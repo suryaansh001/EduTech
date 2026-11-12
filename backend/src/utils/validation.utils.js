@@ -255,10 +255,10 @@ export const paginationSchema = Joi.object({
 
 // ID validation
 export const idSchema = Joi.object({
-  id: Joi.string().hex().length(24).required() // MongoDB ObjectId format
+  id: Joi.string().min(1).max(64).required()
 });
 
-export const mongoIdSchema = Joi.string().hex().length(24);
+export const mongoIdSchema = Joi.string().min(1).max(64);
 
 // Date range validation
 export const dateRangeSchema = Joi.object({
