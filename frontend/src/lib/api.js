@@ -31,11 +31,16 @@ async function fetchAPI(endpoint, options = {}) {
 }
 
 /**
- * Classes API
+ * Classes/Batches API
  */
 export const classesApi = {
-  getClasses: async (token) => {
-    return fetchAPI('/api/classes', {
+  getClasses: async (token, params = {}) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') query.set(k, v);
+    });
+    const qs = query.toString();
+    return fetchAPI(`/api/classes${qs ? `?${qs}` : ''}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
   },
@@ -64,6 +69,38 @@ export const classesApi = {
 
   deleteClass: async (id, token) => {
     return fetchAPI(`/api/classes/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  },
+
+  getEnrollments: async (id, token) => {
+    return fetchAPI(`/api/classes/${id}/enrollments`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  },
+
+  getAvailableStudents: async (id, token, params = {}) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') query.set(k, v);
+    });
+    const qs = query.toString();
+    return fetchAPI(`/api/classes/${id}/available-students${qs ? `?${qs}` : ''}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  },
+
+  bulkEnroll: async (id, studentIds, token) => {
+    return fetchAPI(`/api/classes/${id}/bulk-enroll`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ studentIds }),
+    });
+  },
+
+  removeStudent: async (id, studentId, token) => {
+    return fetchAPI(`/api/classes/${id}/students/${studentId}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
     });

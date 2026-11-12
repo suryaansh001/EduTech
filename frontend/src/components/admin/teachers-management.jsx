@@ -32,6 +32,7 @@ export const TeachersManagement = () => {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
+  const [createdCreds, setCreatedCreds] = useState(null)
 
   const load = async () => {
     if (!token) {
@@ -67,14 +68,17 @@ export const TeachersManagement = () => {
     setSaving(true)
     setError("")
     setSuccess("")
+    setCreatedCreds(null)
     try {
-      await authApi.createUser({ name: newName.trim(), email: newEmail.trim(), role: "TEACHER", specialization: newSubject.trim() || undefined }, token)
+      const res = await authApi.createUser({ name: newName.trim(), email: newEmail.trim(), role: "TEACHER", specialization: newSubject.trim() || undefined }, token)
+      const tempPassword = res?.data?.temporaryPassword || null
+      const createdEmail = res?.data?.user?.email || newEmail.trim()
       setNewName("")
       setNewEmail("")
       setNewSubject("")
-      setSuccess("Teacher created in database (credentials emailed if configured).")
+      setSuccess("Teacher created in database.")
+      if (tempPassword) setCreatedCreds({ email: createdEmail, password: tempPassword, role: "Teacher" })
       await load()
-      setTimeout(() => setSuccess(""), 4000)
     } catch (e) {
       setError(e.message || "Failed to create teacher")
     } finally {
@@ -125,6 +129,14 @@ export const TeachersManagement = () => {
 
         {error && <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/40 dark:bg-rose-500/10 dark:text-rose-300">{error}</div>}
         {success && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-500/10 dark:text-emerald-300">{success}</div>}
+        {createdCreds && (
+          <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 dark:border-blue-900/40 dark:bg-blue-500/10 dark:text-blue-100">
+            <p className="font-semibold">{createdCreds.role} login credentials (share with the teacher)</p>
+            <p className="mt-1">Email: <span className="font-mono font-medium">{createdCreds.email}</span></p>
+            <p>Temporary password: <span className="font-mono font-medium">{createdCreds.password}</span></p>
+            <p className="mt-1 text-xs opacity-80">Shown once now — copy and share securely. The user will be asked to change password on first login (if enabled).</p>
+          </div>
+        )}
 
         <section className="grid gap-6 lg:grid-cols-[380px_1fr]">
           <Card className="border-slate-200/80 bg-white/90 p-6 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">

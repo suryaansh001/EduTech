@@ -10,6 +10,7 @@ import { AdminDashboard } from "@/components/admin/admin-dashboard"
 import { StudentsManagement } from "@/components/admin/students-management"
 import { TeachersManagement } from "@/components/admin/teachers-management"
 import { ClassesManagement } from "@/components/admin/classes-management"
+import { BatchesManagement } from "@/components/admin/batches-management"
 import { TeacherDashboard } from "@/components/teacher/teacher-dashboard"
 import { MyStudents } from "@/components/teacher/my-students"
 import { StudentDashboard } from "@/components/student/student-dashboard"
@@ -97,7 +98,7 @@ function AppContent() {
         case "teachers":
           return <TeachersManagement />
         case "batches":
-          return <Placeholder title="Batches Management" description="Organize student batches and keep cohorts structured." />
+          return <BatchesManagement />
         case "classes":
           return <ClassesManagement />
         case "schedule":
