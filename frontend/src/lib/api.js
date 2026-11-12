@@ -116,11 +116,42 @@ export const chatApi = {
 };
 
 /**
+ * Auth API
+ */
+export const authApi = {
+  login: async (email, password) => {
+    return fetchAPI('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+  },
+
+  createUser: async (data, token) => {
+    return fetchAPI('/api/auth/create-user', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify(data),
+    });
+  },
+
+  getProfile: async (token) => {
+    return fetchAPI('/api/auth/profile', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  },
+};
+
+/**
  * Users API
  */
 export const usersApi = {
-  getUsers: async (token) => {
-    return fetchAPI('/api/users', {
+  getUsers: async (token, params = {}) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') query.set(k, v);
+    });
+    const qs = query.toString();
+    return fetchAPI(`/api/users${qs ? `?${qs}` : ''}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
   },
