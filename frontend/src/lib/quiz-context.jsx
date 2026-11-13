@@ -130,12 +130,33 @@ export function QuizProvider({ children }) {
   }
 
   const submitQuizAttempt = (attempt) => {
-    const newAttempt = {
-      ...attempt,
-      id: `attempt${Date.now()}`,
-      submittedAt: new Date().toISOString(),
-    }
-    setAttempts((prev) => [...prev, newAttempt])
+    // If a final attempt already exists for this student+quiz, treat as practice: store only attempt 2 marks (no answers/options)
+    setAttempts((prev) => {
+      const idx = prev.findIndex((a) => a.quizId === attempt.quizId && a.studentId === attempt.studentId)
+      if (idx !== -1) {
+        const existing = prev[idx]
+        if (existing.attempt2Percentage != null) return prev // only one reattempt allowed
+        const updated = {
+          ...existing,
+          attempt2Marks: attempt.score,
+          attempt2TotalPoints: attempt.totalPoints,
+          attempt2Percentage: attempt.percentage,
+          attempt2SubmittedAt: attempt.submittedAt || new Date().toISOString(),
+          attempt2TimeSpent: attempt.timeSpent ?? null,
+        }
+        const copy = [...prev]
+        copy[idx] = updated
+        return copy
+      }
+      const newAttempt = {
+        ...attempt,
+        id: `attempt${Date.now()}`,
+        attemptNumber: 1,
+        isFinal: true,
+        submittedAt: attempt.submittedAt || new Date().toISOString(),
+      }
+      return [...prev, newAttempt]
+    })
   }
 
   const approveQuizAttempt = (attemptId) => {
@@ -148,8 +169,10 @@ export function QuizProvider({ children }) {
     return quizzes.filter((quiz) => quiz.teacherId === teacherId)
   }
 
-  const getQuizzesByBatch = (batchId) => {
-    return quizzes.filter((quiz) => quiz.batchId === batchId && quiz.isApproved)
+  const getQuizzesByBatch = (batchIdOrIds) => {
+    const ids = Array.isArray(batchIdOrIds) ? batchIdOrIds.filter(Boolean) : [batchIdOrIds].filter(Boolean)
+    if (ids.length === 0) return []
+    return quizzes.filter((quiz) => ids.includes(quiz.batchId) && quiz.isApproved)
   }
 
   const getAttemptsByQuiz = (quizId) => {

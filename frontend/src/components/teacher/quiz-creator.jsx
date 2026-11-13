@@ -1,10 +1,11 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { BarChart3, CalendarClock, CheckCircle2, Clock3, FileJson, PenLine, Pencil, Plus, Trash2, X } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { useQuiz } from "@/lib/quiz-context"
+import { classesApi } from "@/lib/api"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -37,10 +38,11 @@ const emptyQuestion = () => ({
 })
 
 export const QuizCreator = () => {
-  const { user } = useAuth()
+  const { user, token } = useAuth()
   const { createQuiz, updateQuiz, getQuizzesByTeacher, getAttemptsByQuiz } = useQuiz()
   const navigate = useNavigate()
   const quizzes = getQuizzesByTeacher(user?.id)
+  const [batches, setBatches] = useState([])
 
   const [mode, setMode] = useState("manual")
   const [jsonText, setJsonText] = useState("")
@@ -49,7 +51,7 @@ export const QuizCreator = () => {
   const [formData, setFormData] = useState({
     title: "",
     description: "",
-    batchId: user?.batchId || "batch1",
+    batchId: user?.batchId || "",
     timeLimit: 30,
     startTime: "",
     endTime: "",
@@ -59,6 +61,28 @@ export const QuizCreator = () => {
   const [error, setError] = useState("")
   const [editingId, setEditingId] = useState(null)
   const [analyticsQuizId, setAnalyticsQuizId] = useState(null)
+
+  useEffect(() => {
+    let mounted = true
+    const loadBatches = async () => {
+      if (!token) {
+        if (mounted) setBatches(user?.batchId ? [{ id: user.batchId, title: `Batch ${user.batchId}` }] : [])
+        return
+      }
+      try {
+        const res = await classesApi.getClasses(token)
+        const list = Array.isArray(res?.data) ? res.data : (res?.data?.classes || [])
+        if (mounted) {
+          setBatches(list)
+          if (!formData.batchId && list[0]?.id) setFormData((f) => ({ ...f, batchId: list[0].id }))
+        }
+      } catch {
+        if (mounted) setBatches(user?.batchId ? [{ id: user.batchId, title: `Batch ${user.batchId}` }] : [])
+      }
+    }
+    loadBatches()
+    return () => { mounted = false }
+  }, [token])
 
   const totalPoints = useMemo(
     () => questions.reduce((sum, q) => sum + Number(q.points || 0), 0),
@@ -189,6 +213,7 @@ export const QuizCreator = () => {
 
   const isValid =
     formData.title.trim() &&
+    formData.batchId &&
     formData.startTime &&
     formData.endTime &&
     new Date(formData.endTime) > new Date(formData.startTime) &&
@@ -289,8 +314,15 @@ export const QuizCreator = () => {
                   <Textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} placeholder="Briefly describe what this quiz covers" rows={3} />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium">Batch ID</label>
-                  <Input value={formData.batchId} onChange={(e) => setFormData({ ...formData, batchId: e.target.value })} placeholder="batch1" />
+                  <label className="mb-1.5 block text-sm font-medium">Batch (students in this batch can attempt)</label>
+                  {batches.length > 0 ? (
+                    <select value={formData.batchId} onChange={(e) => setFormData({ ...formData, batchId: e.target.value })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" required>
+                      <option value="">Select batch</option>
+                      {batches.map((b) => <option key={b.id} value={b.id}>{b.title || b.name || b.id}</option>)}
+                    </select>
+                  ) : (
+                    <Input value={formData.batchId} onChange={(e) => setFormData({ ...formData, batchId: e.target.value })} placeholder="batch id" required />
+                  )}
                 </div>
                 <div>
                   <label className="mb-1.5 block text-sm font-medium">Time limit (minutes)</label>
@@ -369,7 +401,7 @@ export const QuizCreator = () => {
               <h3 className="text-lg font-semibold">Preview</h3>
               <div className="mt-4 space-y-3 text-sm">
                 <PreviewRow label="Title" value={formData.title || "—"} />
-                <PreviewRow label="Batch" value={formData.batchId || "—"} />
+                <PreviewRow label="Batch" value={(batches.find((b) => b.id === formData.batchId)?.title) || formData.batchId || "—"} />
                 <PreviewRow label="Questions" value={questions.length} />
                 <PreviewRow label="Total points" value={totalPoints} />
                 <PreviewRow label="Starts" value={formData.startTime ? new Date(formData.startTime).toLocaleString() : "—"} />
@@ -480,7 +512,7 @@ function QuizAnalytics({ quiz, attempts, onClose }) {
           <p className="mt-1 text-xl font-semibold">{attempts.length}</p>
         </div>
         <div className="rounded-xl border border-slate-100 p-3 text-center dark:border-slate-800">
-          <p className="text-xs text-muted-foreground">Avg score</p>
+          <p className="text-xs text-muted-foreground">Avg score (A1)</p>
           <p className="mt-1 text-xl font-semibold">{avgScore}%</p>
         </div>
         <div className="rounded-xl border border-slate-100 p-3 text-center dark:border-slate-800">
@@ -508,6 +540,7 @@ function QuizAnalytics({ quiz, attempts, onClose }) {
 
       <div className="mt-6">
         <h4 className="text-sm font-semibold">Student attempts</h4>
+        <p className="mt-1 text-xs text-muted-foreground">Attempt 1 is final (details stored). Attempt 2 is practice (marks only, no answers stored).</p>
         {attempts.length === 0 ? (
           <p className="mt-2 text-sm text-muted-foreground">No attempts yet.</p>
         ) : (
@@ -520,17 +553,19 @@ function QuizAnalytics({ quiz, attempts, onClose }) {
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <p className="text-sm font-medium">{a.studentName || a.studentId}</p>
-                        <p className="text-xs text-muted-foreground">{a.submittedAt ? new Date(a.submittedAt).toLocaleString() : "—"} · Time: {formatDuration(a.timeSpent)}</p>
+                        <p className="text-xs text-muted-foreground">A1: {a.score}/{a.totalPoints} ({a.percentage}%) · {a.submittedAt ? new Date(a.submittedAt).toLocaleString() : "—"}</p>
+                        <p className="text-xs text-muted-foreground">A2 (practice): {a.attempt2Percentage != null ? `${a.attempt2Marks}/${a.attempt2TotalPoints} (${a.attempt2Percentage}%)` : "—"} {a.attempt2SubmittedAt ? `· ${new Date(a.attempt2SubmittedAt).toLocaleString()}` : ""}</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant={a.percentage >= 50 ? "default" : "secondary"}>{a.score}/{a.totalPoints} ({a.percentage}%)</Badge>
+                        <Badge variant={a.percentage >= 50 ? "default" : "secondary"}>Final {a.percentage}%</Badge>
                         <span className="text-xs text-blue-600">{open ? "Hide" : "Details"}</span>
                       </div>
                     </div>
                   </button>
                   {open && (
                     <div className="border-t border-slate-100 p-3 dark:border-slate-800">
-                      <p className="mb-2 text-xs text-muted-foreground">Started: {a.startedAt ? new Date(a.startedAt).toLocaleString() : "—"} · Submitted: {a.submittedAt ? new Date(a.submittedAt).toLocaleString() : "—"}</p>
+                      <p className="mb-2 text-xs text-muted-foreground">Attempt 1 — Started: {a.startedAt ? new Date(a.startedAt).toLocaleString() : "—"} · Submitted: {a.submittedAt ? new Date(a.submittedAt).toLocaleString() : "—"} · Time: {formatDuration(a.timeSpent)}</p>
+                      {a.attempt2Percentage != null && <p className="mb-2 text-xs text-amber-700 dark:text-amber-300">Attempt 2 (practice, marks only): {a.attempt2Marks}/{a.attempt2TotalPoints} ({a.attempt2Percentage}%) · Time: {formatDuration(a.attempt2TimeSpent)}</p>}
                       <div className="space-y-2">
                         {(quiz.questions || []).map((q, i) => {
                           const ans = a.answers?.[q.id]
@@ -539,9 +574,9 @@ function QuizAnalytics({ quiz, attempts, onClose }) {
                           return (
                             <div key={q.id} className={`rounded-lg border p-2 text-xs ${ans === undefined ? "border-slate-200 dark:border-slate-700" : correct ? "border-emerald-200 bg-emerald-50/40 dark:border-emerald-900/40 dark:bg-emerald-500/5" : "border-rose-200 bg-rose-50/40 dark:border-rose-900/40 dark:bg-rose-500/5"}`}>
                               <p className="font-medium">Q{i + 1}. {q.question}</p>
-                              <p className="mt-1">Answer: {ans !== undefined ? (q.options?.[ans] ?? ans) : "Not answered"} {ans !== undefined ? (correct ? "✓" : "✗") : ""}</p>
+                              <p className="mt-1">Answer (A1): {ans !== undefined ? (q.options?.[ans] ?? ans) : "Not answered"} {ans !== undefined ? (correct ? "✓" : "✗") : ""}</p>
                               <p>Correct: {q.options?.[q.correctAnswer]}</p>
-                              <p>Time taken: {formatDuration(qTime)}</p>
+                              <p>Time taken (A1): {formatDuration(qTime)}</p>
                             </div>
                           )
                         })}
