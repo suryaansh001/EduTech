@@ -39,7 +39,7 @@ const emptyQuestion = () => ({
 
 export const QuizCreator = () => {
   const { user, token } = useAuth()
-  const { createQuiz, updateQuiz, getQuizzesByTeacher, getAttemptsByQuiz } = useQuiz()
+  const { createQuiz, updateQuiz, getQuizzesByTeacher, getAttemptsByQuiz, fetchQuizAttempts, loading, error: ctxError } = useQuiz()
   const navigate = useNavigate()
   const quizzes = getQuizzesByTeacher(user?.id)
   const [batches, setBatches] = useState([])
@@ -220,15 +220,17 @@ export const QuizCreator = () => {
     questions.length > 0 &&
     questions.every((q) => q.question.trim() && q.options.every((o) => o.trim()))
 
-  const handleCreate = (e) => {
+  const handleCreate = async (e) => {
     e.preventDefault()
     setError("")
     if (!isValid) {
-      setError("Please fill all required fields, valid schedule, and complete questions/options.")
+      setError("Please fill all required fields (including batch), valid schedule, and complete questions/options.")
       return
     }
     const payload = {
       ...formData,
+      batchId: formData.batchId,
+      classId: formData.batchId,
       teacherId: user?.id,
       teacherName: user?.name,
       timeLimit: Number(formData.timeLimit) || 30,
@@ -244,14 +246,18 @@ export const QuizCreator = () => {
         points: Number(q.points) || 1,
       })),
     }
-    if (editingId) {
-      updateQuiz(editingId, payload)
-      setSuccess("Quiz updated successfully.")
-    } else {
-      createQuiz({ ...payload, maxAttempts: 1, showLeaderboard: true })
-      setSuccess("Quiz created and scheduled successfully.")
+    try {
+      if (editingId) {
+        await updateQuiz(editingId, payload)
+        setSuccess("Quiz updated successfully (saved to database).")
+      } else {
+        await createQuiz({ ...payload, maxAttempts: 1, showLeaderboard: true })
+        setSuccess("Quiz created and scheduled successfully (saved to database).")
+      }
+      resetForm()
+    } catch (e) {
+      setError(e.message || "Failed to save quiz")
     }
-    resetForm()
     setTimeout(() => setSuccess(""), 3000)
   }
 
@@ -393,6 +399,7 @@ export const QuizCreator = () => {
               <Button type="button" variant="outline" onClick={resetForm}>{editingId ? "Cancel" : "Reset"}</Button>
               {success && <span className="text-sm font-medium text-emerald-600">{success}</span>}
               {error && <span className="text-sm font-medium text-rose-600">{error}</span>}
+              {ctxError && <span className="text-sm font-medium text-rose-600">{ctxError}</span>}
             </div>
           </form>
 
@@ -423,7 +430,9 @@ export const QuizCreator = () => {
                 <Badge variant="secondary">{quizzes.length}</Badge>
               </div>
               <div className="mt-4 space-y-3">
-                {quizzes.length === 0 ? (
+                {loading && quizzes.length === 0 ? (
+                  <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-sm text-muted-foreground dark:border-slate-800">Loading quizzes...</p>
+                ) : quizzes.length === 0 ? (
                   <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-sm text-muted-foreground dark:border-slate-800">No quizzes created yet.</p>
                 ) : (
                   quizzes.map((quiz) => (
@@ -439,7 +448,7 @@ export const QuizCreator = () => {
                       </button>
                       <div className="mt-2 flex flex-wrap gap-2">
                         <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5" onClick={() => startEdit(quiz)}><Pencil className="h-3.5 w-3.5" /> Edit</Button>
-                        <Button type="button" size="sm" variant={analyticsQuizId === quiz.id ? "default" : "outline"} className="h-8 gap-1.5" onClick={() => setAnalyticsQuizId(analyticsQuizId === quiz.id ? null : quiz.id)}><BarChart3 className="h-3.5 w-3.5" /> Analytics</Button>
+                        <Button type="button" size="sm" variant={analyticsQuizId === quiz.id ? "default" : "outline"} className="h-8 gap-1.5" onClick={async () => { const next = analyticsQuizId === quiz.id ? null : quiz.id; setAnalyticsQuizId(next); if (next) { try { await fetchQuizAttempts(next) } catch {} } }}><BarChart3 className="h-3.5 w-3.5" /> Analytics</Button>
                       </div>
                     </div>
                   ))

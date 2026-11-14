@@ -161,6 +161,8 @@ model Quiz {
   timeLimit          Int?
   totalMarks         Int           @default(0)
   isActive           Boolean       @default(false)
+  startTime          DateTime?
+  endTime            DateTime?
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
   averageScore       Float?
@@ -190,17 +192,24 @@ model Question {
 }
 
 model QuizAttempt {
-  id               String   @id @default(cuid())
-  userId           String
-  quizId           String
-  answers          Json
-  score            Float    @default(0)
-  totalMarks       Int
-  completedAt      DateTime @default(now())
-  timeSpentMinutes Int?     @db.SmallInt
-  percentageScore  Float
-  quiz             Quiz     @relation(fields: [quizId], references: [id])
-  user             User     @relation(fields: [userId], references: [id])
+  id                    String    @id @default(cuid())
+  userId                String
+  quizId                String
+  answers               Json
+  score                 Float     @default(0)
+  totalMarks            Int
+  completedAt           DateTime  @default(now())
+  startedAt             DateTime?
+  timeSpentMinutes      Int?      @db.SmallInt
+  questionTimes         Json?
+  percentageScore       Float
+  attempt2Score         Float?
+  attempt2TotalMarks    Int?
+  attempt2Percentage    Float?
+  attempt2CompletedAt   DateTime?
+  attempt2TimeSpentMinutes Int?   @db.SmallInt
+  quiz                  Quiz      @relation(fields: [quizId], references: [id])
+  user                  User      @relation(fields: [userId], references: [id])
 
   @@index([quizId, score])
   @@index([userId, completedAt])

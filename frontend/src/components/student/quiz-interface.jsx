@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { CheckCircle2, ChevronLeft, ChevronRight, Clock3, RotateCcw, Send } from "lucide-react"
+import { CheckCircle2, ChevronLeft, ChevronRight, Clock3, Loader2, RotateCcw, Send } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -36,7 +36,7 @@ const getQuizStatus = (quiz, now = new Date()) => {
 
 export const QuizInterface = () => {
   const { user, token } = useAuth()
-  const { getQuizzesByBatch, getAttemptsByStudent, submitQuizAttempt } = useQuiz()
+  const { getQuizzesByBatch, getAttemptsByStudent, submitQuizAttempt, loading, error } = useQuiz()
   const [batchIds, setBatchIds] = useState(user?.batchId ? [user.batchId] : [])
   const quizzes = useMemo(() => getQuizzesByBatch(batchIds), [getQuizzesByBatch, batchIds])
   const attempts = useMemo(() => getAttemptsByStudent(user?.id), [getAttemptsByStudent, user?.id])
@@ -50,6 +50,8 @@ export const QuizInterface = () => {
   const [sessionReady, setSessionReady] = useState(false)
   const [isPractice, setIsPractice] = useState(false)
   const [practiceResult, setPracticeResult] = useState(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState("")
   const [now, setNow] = useState(new Date())
   const autoSubmittedRef = useRef(false)
   const startedAtRef = useRef(null)
@@ -199,25 +201,32 @@ export const QuizInterface = () => {
     }
   }
 
-  const handleSubmit = (auto = false) => {
-    if (!selectedQuiz || submitted || !sessionReady) return
+  const handleSubmit = async (auto = false) => {
+    if (!selectedQuiz || submitted || !sessionReady || submitting) return
     if (!auto && quizStatus !== "active") return
     if (auto && autoSubmittedRef.current) return
     if (auto) autoSubmittedRef.current = true
     if (currentQuestion) flushQuestionTime(currentQuestion.id)
     questionEnterRef.current = null
     const res = calculateResult()
-    if (isPractice) {
-      setPracticeResult(res)
-      submitQuizAttempt(res) // stores only marks in existing attempt record
+    setSubmitting(true)
+    setSubmitError("")
+    try {
+      const saved = await submitQuizAttempt(res, { isPractice })
+      const finalRes = { ...res, ...(saved || {}), questionResults: saved?.questionResults || res.questionResults }
+      if (isPractice) {
+        setPracticeResult(finalRes)
+      } else {
+        setResult(finalRes)
+      }
       setSubmitted(true)
       setSessionReady(false)
-      return
+    } catch (e) {
+      setSubmitError(e?.message || "Failed to submit quiz")
+      autoSubmittedRef.current = false
+    } finally {
+      setSubmitting(false)
     }
-    submitQuizAttempt(res)
-    setResult(res)
-    setSubmitted(true)
-    setSessionReady(false)
   }
 
   useEffect(() => {
@@ -241,12 +250,34 @@ export const QuizInterface = () => {
   const answeredCount = Object.keys(answers).length
   const progress = selectedQuiz ? Math.round((answeredCount / selectedQuiz.questions.length) * 100) : 0
 
+  if (!token) {
+    return (
+      <main className="px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-3xl rounded-3xl border border-amber-200 bg-amber-50 p-8 text-center text-amber-900 dark:border-amber-900/40 dark:bg-amber-500/10 dark:text-amber-100">
+          <h2 className="text-xl font-semibold">Login required</h2>
+          <p className="mt-2 text-sm">Please log in with your student account to load quizzes from the database.</p>
+        </div>
+      </main>
+    )
+  }
+
+  if (loading && !quizzes.length) {
+    return (
+      <main className="px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-3xl items-center justify-center gap-2 rounded-3xl border border-slate-200 bg-white/90 p-10 text-sm text-muted-foreground shadow-sm dark:border-slate-800 dark:bg-slate-950/80">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading quizzes...
+        </div>
+      </main>
+    )
+  }
+
   if (!quizzes.length) {
     return (
       <main className="px-4 py-6 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl rounded-3xl border border-slate-200 bg-white/90 p-10 text-center shadow-sm dark:border-slate-800 dark:bg-slate-950/80">
           <h2 className="text-2xl font-semibold tracking-tight">No quizzes available</h2>
-          <p className="mt-2 text-sm text-muted-foreground">Your teacher hasn&apos;t assigned any quizzes yet.</p>
+          <p className="mt-2 text-sm text-muted-foreground">Your teacher hasn&apos;t assigned any quizzes for your batch yet, or the quiz window is not visible.</p>
+          {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
         </div>
       </main>
     )
@@ -401,11 +432,12 @@ export const QuizInterface = () => {
                             Next <ChevronRight className="h-4 w-4" />
                           </Button>
                         ) : (
-                          <Button onClick={() => handleSubmit(false)} className="gap-2">
-                            <Send className="h-4 w-4" /> {isPractice ? "Submit reattempt" : "Submit quiz"}
+                          <Button onClick={() => handleSubmit(false)} className="gap-2" disabled={submitting}>
+                            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} {isPractice ? "Submit reattempt" : "Submit quiz"}
                           </Button>
                         )}
                       </div>
+                      {submitError && <p className="mt-3 text-sm text-rose-600">{submitError}</p>}
                     </>
                   ) : canStart ? (
                     <div className="space-y-4">

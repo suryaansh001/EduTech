@@ -108,65 +108,69 @@ export const submitAssignmentSchema = Joi.object({
 }).or('textSubmission', 'fileSubmissions');
 
 // Quiz validation schemas
-export const createQuizSchema = Joi.object({
-  title: Joi.string().min(3).max(100).required(),
-  description: Joi.string().max(1000).optional(),
-  classId: Joi.string().required(),
-  timeLimit: Joi.number().integer().min(1).max(480).optional(), // max 8 hours
-  totalMarks: Joi.number().integer().min(1).max(1000).optional(),
-  passingMarks: Joi.number().integer().min(0).optional(),
-  shuffleQuestions: Joi.boolean().default(false),
-  showResults: Joi.boolean().default(true),
-  allowRetakes: Joi.boolean().default(false),
-  maxAttempts: Joi.number().integer().min(1).max(10).default(1),
-  startTime: Joi.date().min('now').optional(),
-  endTime: Joi.date().greater(Joi.ref('startTime')).optional(),
-  questions: Joi.array().items(
-    Joi.object({
-      type: Joi.string().valid('MULTIPLE_CHOICE', 'TRUE_FALSE', 'SHORT_ANSWER', 'ESSAY').required(),
-      question: Joi.string().min(10).max(2000).required(),
-      options: Joi.when('type', {
-        is: 'MULTIPLE_CHOICE',
-        then: Joi.array().items(Joi.string().max(200)).min(2).max(6).required(),
-        otherwise: Joi.optional()
-      }),
-      correctAnswer: Joi.when('type', {
-        is: Joi.valid('MULTIPLE_CHOICE', 'TRUE_FALSE', 'SHORT_ANSWER'),
-        then: Joi.string().required(),
-        otherwise: Joi.optional() // Essay questions don't have predefined answers
-      }),
-      marks: Joi.number().integer().min(1).max(100).default(1),
-      explanation: Joi.string().max(500).optional(),
-      order: Joi.number().integer().min(1).required()
-    })
-  ).min(1).required()
+const questionSchema = Joi.object({
+  id: Joi.string().optional(),
+  type: Joi.string().valid('MULTIPLE_CHOICE', 'TRUE_FALSE', 'SHORT_ANSWER', 'ESSAY').default('MULTIPLE_CHOICE'),
+  question: Joi.string().min(1).max(2000).required(),
+  options: Joi.array().items(Joi.string().max(500)).min(2).optional(),
+  correctAnswer: Joi.alternatives().try(Joi.string().allow(''), Joi.number(), Joi.boolean()).optional(),
+  marks: Joi.number().integer().min(1).max(100).optional(),
+  points: Joi.number().integer().min(1).max(100).optional(),
+  explanation: Joi.string().max(500).optional(),
+  order: Joi.number().integer().min(1).optional()
 });
 
-export const updateQuizSchema = Joi.object({
-  title: Joi.string().min(3).max(100).optional(),
-  description: Joi.string().max(1000).optional(),
+export const createQuizSchema = Joi.object({
+  title: Joi.string().min(1).max(200).required(),
+  description: Joi.string().max(2000).allow('', null).optional(),
+  classId: Joi.string().required(), // batch/class id
+  batchId: Joi.string().optional(),
   timeLimit: Joi.number().integer().min(1).max(480).optional(),
-  totalMarks: Joi.number().integer().min(1).max(1000).optional(),
+  totalMarks: Joi.number().integer().min(0).max(10000).optional(),
   passingMarks: Joi.number().integer().min(0).optional(),
   shuffleQuestions: Joi.boolean().optional(),
   showResults: Joi.boolean().optional(),
   allowRetakes: Joi.boolean().optional(),
   maxAttempts: Joi.number().integer().min(1).max(10).optional(),
-  startTime: Joi.date().optional(),
-  endTime: Joi.date().optional(),
-  status: Joi.string().valid('DRAFT', 'PUBLISHED', 'COMPLETED', 'CANCELLED').optional()
+  startTime: Joi.alternatives().try(Joi.date(), Joi.string().allow('', null)).optional(),
+  endTime: Joi.alternatives().try(Joi.date(), Joi.string().allow('', null)).optional(),
+  isActive: Joi.boolean().optional(),
+  questions: Joi.array().items(questionSchema).min(1).required()
+});
+
+export const updateQuizSchema = Joi.object({
+  title: Joi.string().min(1).max(200).optional(),
+  description: Joi.string().max(2000).allow('', null).optional(),
+  classId: Joi.string().optional(),
+  batchId: Joi.string().optional(),
+  timeLimit: Joi.number().integer().min(1).max(480).optional(),
+  totalMarks: Joi.number().integer().min(0).max(10000).optional(),
+  passingMarks: Joi.number().integer().min(0).optional(),
+  shuffleQuestions: Joi.boolean().optional(),
+  showResults: Joi.boolean().optional(),
+  allowRetakes: Joi.boolean().optional(),
+  maxAttempts: Joi.number().integer().min(1).max(10).optional(),
+  startTime: Joi.alternatives().try(Joi.date(), Joi.string().allow('', null)).optional(),
+  endTime: Joi.alternatives().try(Joi.date(), Joi.string().allow('', null)).optional(),
+  status: Joi.string().valid('DRAFT', 'PUBLISHED', 'COMPLETED', 'CANCELLED', 'ACTIVE', 'INACTIVE').optional(),
+  isActive: Joi.boolean().optional(),
+  questions: Joi.array().items(questionSchema).min(1).optional()
 });
 
 export const submitQuizSchema = Joi.object({
   answers: Joi.object().pattern(
     Joi.string(), // questionId
     Joi.alternatives().try(
-      Joi.string().max(2000), // For text answers
-      Joi.number(), // For multiple choice indices
-      Joi.boolean() // For true/false
+      Joi.string().allow('').max(2000),
+      Joi.number(),
+      Joi.boolean(),
+      Joi.valid(null)
     )
   ).required(),
-  timeSpent: Joi.number().integer().min(0).optional() // in seconds
+  timeSpent: Joi.number().integer().min(0).optional(), // in seconds
+  startedAt: Joi.alternatives().try(Joi.date(), Joi.string().allow('', null)).optional(),
+  questionTimes: Joi.object().pattern(Joi.string(), Joi.number()).optional(),
+  isPractice: Joi.boolean().optional()
 });
 
 // Announcement validation schemas

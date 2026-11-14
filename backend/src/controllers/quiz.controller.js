@@ -103,10 +103,10 @@ export const quizController = {
     try {
       const { id } = req.params;
       const studentId = req.user.id;
-      const { answers } = req.body;
-      
-      const result = await quizService.submitQuizAttempt(id, studentId, answers);
-      
+      const payload = req.body || {};
+
+      const result = await quizService.submitQuizAttempt(id, studentId, payload);
+
       successResponse(res, result, 'Quiz submitted successfully');
     } catch (error) {
       next(error);

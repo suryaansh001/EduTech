@@ -114,8 +114,13 @@ export const classesApi = {
  * Quizzes API
  */
 export const quizzesApi = {
-  getQuizzes: async (token) => {
-    return fetchAPI('/api/quizzes', {
+  getQuizzes: async (token, params = {}) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') query.set(k, v);
+    });
+    const qs = query.toString();
+    return fetchAPI(`/api/quizzes${qs ? `?${qs}` : ''}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
   },
@@ -131,6 +136,54 @@ export const quizzesApi = {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify(data),
+    });
+  },
+
+  updateQuiz: async (id, data, token) => {
+    return fetchAPI(`/api/quizzes/${id}`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteQuiz: async (id, token) => {
+    return fetchAPI(`/api/quizzes/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  },
+
+  toggleStatus: async (id, isActive, token) => {
+    return fetchAPI(`/api/quizzes/${id}/status`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ isActive }),
+    });
+  },
+
+  submitQuiz: async (id, data, token) => {
+    return fetchAPI(`/api/quizzes/${id}/submit`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify(data),
+    });
+  },
+
+  getMyAttempts: async (token, params = {}) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') query.set(k, v);
+    });
+    const qs = query.toString();
+    return fetchAPI(`/api/quizzes/my-attempts${qs ? `?${qs}` : ''}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  },
+
+  getQuizAttempts: async (id, token) => {
+    return fetchAPI(`/api/quizzes/${id}/attempts`, {
+      headers: { Authorization: `Bearer ${token}` },
     });
   },
 };
